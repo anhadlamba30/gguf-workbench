@@ -56,18 +56,19 @@ class GGUFParseError(RuntimeError):
 
 
 class BinaryReader:
-    def __init__(self, data: bytes):
+    def __init__(self, data: bytes | mmap.mmap):
         self.data = data
         self.pos = 0
+        self._size = len(data)
 
     def tell(self) -> int:
         return self.pos
 
     def read(self, n: int) -> bytes:
         end = self.pos + n
-        if end > len(self.data):
+        if end > self._size:
             raise GGUFParseError(f"Unexpected EOF while reading {n} bytes at offset {self.pos}")
-        out = self.data[self.pos:end]
+        out = bytes(self.data[self.pos:end])
         self.pos = end
         return out
 
@@ -185,8 +186,9 @@ class BatchOperation:
 class GGUFParser:
     def __init__(self, file_path: str | os.PathLike[str]):
         self.path = Path(file_path)
-        self._data = self.path.read_bytes()
-        self.reader = BinaryReader(self._data)
+        self._fd = open(self.path, "rb")
+        self._mm = mmap.mmap(self._fd.fileno(), 0, access=mmap.ACCESS_READ)
+        self.reader = BinaryReader(self._mm)
 
     def parse(self) -> GGUFManifest:
         r = self.reader
@@ -222,7 +224,7 @@ class GGUFParser:
             })
 
         tensor_data_start = align_offset(r.tell(), alignment)
-        file_size = len(self._data)
+        file_size = self._mm.size()
         tensors: List[TensorInfo] = []
         for desc in tensor_descs:
             abs_off = tensor_data_start + int(desc["offset"])
@@ -307,6 +309,19 @@ class GGUFParser:
         if tensor.n_bytes == tensor.n_elements * 2:
             return "F16_OR_BF16"
         return GGML_TYPE_NAMES.get(tensor.ggml_type, f"TYPE_{tensor.ggml_type}")
+
+    def close(self) -> None:
+        if hasattr(self, "_mm") and not self._mm.closed:
+            self._mm.close()
+        if hasattr(self, "_fd") and not self._fd.closed:
+            self._fd.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
 
 def bf16_to_f32(arr_u16: np.ndarray) -> np.ndarray:
@@ -410,8 +425,8 @@ def manifest_summary(manifest: GGUFManifest) -> str:
 
 
 def load_manifest(file_path: str):
-    parser = GGUFParser(file_path)
-    manifest = parser.parse()
+    with GGUFParser(file_path) as parser:
+        manifest = parser.parse()
     meta_rows = []
     for k, v in manifest.metadata.items():
         preview = v
