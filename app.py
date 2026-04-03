@@ -687,7 +687,7 @@ def render_batch_queue(batch_list: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def apply_batch(batch_list: List[Dict[str, Any]], manifest_dict: Dict[str, Any], output_path: str) -> str:
+def apply_batch(batch_list: List[Dict[str, Any]], manifest_dict: Dict[str, Any], output_path: str, progress=gr.Progress()) -> str:
     """Apply all queued batch operations to a copy of the original GGUF."""
     if not batch_list:
         raise gr.Error("Batch is empty. Add operations first.")
@@ -697,7 +697,10 @@ def apply_batch(batch_list: List[Dict[str, Any]], manifest_dict: Dict[str, Any],
     manifest = manifest_from_dict(manifest_dict)
     
     # Start fresh from the original file
+    progress(0, desc="Copying original file...")
     shutil.copyfile(manifest.path, output_path)
+    
+    total = len(batch_list)
     
     # Apply each operation to the copied file
     for i, op_dict in enumerate(batch_list, 1):
@@ -705,6 +708,8 @@ def apply_batch(batch_list: List[Dict[str, Any]], manifest_dict: Dict[str, Any],
         tensor = manifest.tensor_map().get(op.tensor_name)
         if tensor is None:
             raise gr.Error(f"Operation {i}: Tensor '{op.tensor_name}' not found")
+        
+        progress(i / total, desc=f"{i}/{total}: {op.display_label()}")
         
         # Read current state from the output file
         arr = decode_tensor(output_path, tensor, op.decode_as)
@@ -734,6 +739,8 @@ def apply_batch(batch_list: List[Dict[str, Any]], manifest_dict: Dict[str, Any],
             write_tensor_patch(manifest, tensor, arr, op.decode_as, output_path)
         except Exception as e:
             raise gr.Error(f"Operation {i} ({op.op_type} on {op.tensor_name}) failed: {str(e)}")
+    
+    progress(1.0, desc="Done!")
     
     return f"✓ **Batch applied successfully!**\n\nApplied {len(batch_list)} operation(s).\n\nSaved to: `{output_path}`"
 
@@ -948,6 +955,7 @@ def build_app() -> gr.Blocks:
             apply_batch,
             inputs=[batch_queue, manifest_state, batch_output],
             outputs=[batch_result],
+            show_progress=True,
         )
         batch_clear_btn.click(
             clear_batch,
