@@ -8,3 +8,4 @@ venv/
 *.gguf
 .tickets/
 transformed_models/
+agents/
