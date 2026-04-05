@@ -46,7 +46,7 @@ GGUF Workbench lets you:
 
 ```bash
 # Clone the repo or navigate to the directory
-cd gguf_workbench_v2_1
+cd gguf-workbench
 
 # Create a virtual environment
 python -m venv .venv
