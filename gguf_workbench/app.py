@@ -39,6 +39,9 @@ from .mri_viz import (
     plot_layer_summary,
     plot_model_overview,
     get_tensor_quantization_info,
+    format_stats_markdown,
+    plot_magnitude_spectrum,
+    plot_outlier_heatmap,
 )
 
 
@@ -100,6 +103,11 @@ def inspect_tensor_mri(manifest_dict: Dict[str, Any], tensor_name: str, decode_a
         show_kde=True,
     )
 
+    spectrum_fig = plot_magnitude_spectrum(
+        arr,
+        title=f"{tensor.name} - Magnitude Spectrum",
+    )
+
     heatmap_fig = None
     if arr.ndim >= 2:
         heatmap_fig = plot_heatmap(
@@ -108,22 +116,29 @@ def inspect_tensor_mri(manifest_dict: Dict[str, Any], tensor_name: str, decode_a
         )
     else:
         heatmap_fig = go.Figure().update_layout(
-            title="Heatmap not available for 1D tensors"
+            title="Heatmap not available for 1D tensors",
+            paper_bgcolor="#0a0e17",
+            plot_bgcolor="#0a0e17",
+            font=dict(color="#94a3b8"),
         )
 
-    info_text = (
-        f"### {tensor.name}\n"
-        f"**Type:** {quant_info}\n"
-        f"**Shape:** {stats['shape']}\n"
-        f"**Elements:** {stats['n_elements']:,}\n\n"
-        f"**Statistics:**\n"
-        f"- Min: {stats['min']:.6g}\n"
-        f"- Max: {stats['max']:.6g}\n"
-        f"- Mean: {stats['mean']:.6g}\n"
-        f"- Std: {stats['std']:.6g}"
-    )
+    outlier_fig = None
+    if arr.ndim >= 2:
+        outlier_fig = plot_outlier_heatmap(
+            arr,
+            title=f"{tensor.name} - Outlier Detection",
+        )
+    else:
+        outlier_fig = go.Figure().update_layout(
+            title="Outlier detection not available for 1D tensors",
+            paper_bgcolor="#0a0e17",
+            plot_bgcolor="#0a0e17",
+            font=dict(color="#94a3b8"),
+        )
 
-    return hist_fig, heatmap_fig, info_text
+    info_text = format_stats_markdown(stats, quant_info, tensor.name)
+
+    return hist_fig, heatmap_fig, info_text, spectrum_fig, outlier_fig
 
 
 def mri_layer_summary(manifest_dict: Dict[str, Any]):
@@ -382,19 +397,26 @@ def build_app() -> gr.Blocks:
                         inspect_mri_info = gr.Markdown()
                     with gr.Column(scale=2):
                         inspect_mri_hist = gr.Plot()
+                        inspect_mri_spectrum = gr.Plot()
                         inspect_mri_heatmap = gr.Plot()
+                        inspect_mri_outlier = gr.Plot()
 
             with gr.Tab("MRI Mode"):
                 gr.Markdown(
-                    "### 🧠 MRI Mode - Neural Weight Explorer\n"
-                    "Interactive visualizations of tensor weight distributions and patterns.\n\n"
-                    "**Tip:** Click on any tensor in the layer selector to explore its weights."
+                    "### Neural Weight Explorer\n"
+                    "Interactive visualizations of tensor weight distributions, magnitude spectra, and anomaly detection.\n"
                 )
                 with gr.Row():
+                    mri_filter = gr.Textbox(
+                        label="Filter tensors",
+                        placeholder="attn, mlp, norm, embd...",
+                        scale=1,
+                    )
                     mri_tensor_select = gr.Dropdown(
                         label="Select Tensor",
                         choices=[],
                         scale=3,
+                        filterable=True,
                     )
                     mri_decode_as = gr.Radio(
                         label="Decode as",
@@ -408,8 +430,15 @@ def build_app() -> gr.Blocks:
                 with gr.Row():
                     mri_model_overview_plot = gr.Plot(label="Model Overview")
                 with gr.Row():
-                    mri_hist_plot = gr.Plot(label="Weight Distribution")
-                    mri_heatmap_plot = gr.Plot(label="Weight Matrix Heatmap")
+                    with gr.Column(scale=1):
+                        mri_hist_plot = gr.Plot(label="Weight Distribution")
+                    with gr.Column(scale=1):
+                        mri_spectrum_plot = gr.Plot(label="Magnitude Spectrum")
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        mri_heatmap_plot = gr.Plot(label="Weight Matrix Heatmap")
+                    with gr.Column(scale=1):
+                        mri_outlier_plot = gr.Plot(label="Outlier Detection")
                 mri_tensor_info = gr.Markdown()
 
             with gr.Tab("Patch scalar"):
@@ -640,13 +669,26 @@ def build_app() -> gr.Blocks:
             mri_enabled, manifest_dict, tensor_name, decode_as, max_items
         ):
             if mri_enabled:
+                hist, heatmap, info, spectrum, outlier = inspect_tensor_mri(
+                    manifest_dict, tensor_name, decode_as
+                )
                 return (
                     gr.update(visible=False),
                     gr.update(visible=True),
+                    info,
+                    hist,
+                    heatmap,
+                    spectrum,
+                    outlier,
                 )
             return (
                 gr.update(visible=True),
                 gr.update(visible=False),
+                "",
+                None,
+                None,
+                None,
+                None,
             )
 
         inspect_btn.click(
@@ -658,7 +700,16 @@ def build_app() -> gr.Blocks:
                 inspect_decode_as,
                 inspect_max,
             ],
-            outputs=[inspect_basic_view, inspect_mri_view],
+            outputs=[
+                inspect_basic_view,
+                inspect_mri_view,
+                inspect_mri_info,
+                inspect_mri_hist,
+                inspect_mri_heatmap,
+                inspect_mri_spectrum,
+                inspect_mri_outlier,
+            ],
+            show_progress=True,
         )
 
         inspect_btn.click(
@@ -670,17 +721,6 @@ def build_app() -> gr.Blocks:
                 inspect_max,
             ],
             outputs=[inspect_stats, inspect_preview],
-        )
-
-        inspect_btn.click(
-            inspect_tensor_mri,
-            inputs=[
-                manifest_state,
-                inspect_tensor_name,
-                inspect_decode_as,
-            ],
-            outputs=[inspect_mri_hist, inspect_mri_heatmap, inspect_mri_info],
-            show_progress=True,
         )
 
         scalar_btn.click(
@@ -847,7 +887,13 @@ def build_app() -> gr.Blocks:
                 mri_tensor_select,
                 mri_decode_as,
             ],
-            outputs=[mri_hist_plot, mri_heatmap_plot, mri_tensor_info],
+            outputs=[
+                mri_hist_plot,
+                mri_heatmap_plot,
+                mri_tensor_info,
+                mri_spectrum_plot,
+                mri_outlier_plot,
+            ],
             show_progress=True,
         )
 
