@@ -3,17 +3,26 @@ import os
 import tempfile
 
 from app import (
-    BatchOperation, batch_op_to_dict, batch_op_from_dict,
-    batch_add_scalar, batch_add_transform, batch_add_slice,
-    apply_batch, clear_batch, render_batch_queue,
-    load_manifest, manifest_to_dict,
+    BatchOperation,
+    batch_op_to_dict,
+    batch_op_from_dict,
+    batch_add_scalar,
+    batch_add_transform,
+    batch_add_slice,
+    apply_batch,
+    clear_batch,
+    render_batch_queue,
+    load_manifest,
+    manifest_to_dict,
 )
 
 
 class TestBatchOperation:
     def test_scalar_label(self):
         op = BatchOperation(
-            op_type="scalar", tensor_name="x", decode_as="auto",
+            op_type="scalar",
+            tensor_name="x",
+            decode_as="auto",
             parameters={"indices": "0,1", "new_value": 3.14},
         )
         label = op.display_label()
@@ -23,7 +32,9 @@ class TestBatchOperation:
 
     def test_transform_label(self):
         op = BatchOperation(
-            op_type="transform", tensor_name="y", decode_as="auto",
+            op_type="transform",
+            tensor_name="y",
+            decode_as="auto",
             parameters={"scale": 2.0, "bias": 0.5, "clip_min": None, "clip_max": None},
         )
         label = op.display_label()
@@ -32,20 +43,33 @@ class TestBatchOperation:
 
     def test_slice_label(self):
         op = BatchOperation(
-            op_type="slice", tensor_name="z", decode_as="auto",
-            parameters={"axis": 0, "index": 5, "mode": "set_constant", "value": 0.0, "scale": 1.0, "bias": 0.0},
+            op_type="slice",
+            tensor_name="z",
+            decode_as="auto",
+            parameters={
+                "axis": 0,
+                "index": 5,
+                "mode": "set_constant",
+                "value": 0.0,
+                "scale": 1.0,
+                "bias": 0.0,
+            },
         )
         label = op.display_label()
         assert "Slice" in label
         assert "axis=0" in label
 
     def test_unknown_label(self):
-        op = BatchOperation(op_type="weird", tensor_name="w", decode_as="auto", parameters={})
+        op = BatchOperation(
+            op_type="weird", tensor_name="w", decode_as="auto", parameters={}
+        )
         assert "Unknown" in op.display_label()
 
     def test_serialize_round_trip(self):
         op = BatchOperation(
-            op_type="transform", tensor_name="x", decode_as="F32",
+            op_type="transform",
+            tensor_name="x",
+            decode_as="F32",
             parameters={"scale": 1.5, "bias": 0.0, "clip_min": None, "clip_max": None},
         )
         d = batch_op_to_dict(op)
@@ -62,12 +86,16 @@ class TestBatchAdd:
         assert "Added" in msg
 
     def test_add_transform(self):
-        batch, msg = batch_add_transform([], "tensor.test", "auto", 2.0, 0.0, None, None)
+        batch, msg = batch_add_transform(
+            [], "tensor.test", "auto", 2.0, 0.0, None, None
+        )
         assert len(batch) == 1
         assert "Added" in msg
 
     def test_add_slice(self):
-        batch, msg = batch_add_slice([], "tensor.test", "auto", 0, 0, "set_constant", 0.0, 1.0, 0.0)
+        batch, msg = batch_add_slice(
+            [], "tensor.test", "auto", 0, 0, "set_constant", 0.0, 1.0, 0.0
+        )
         assert len(batch) == 1
         assert "Added" in msg
 
@@ -129,13 +157,16 @@ class TestApplyBatch:
         with tempfile.NamedTemporaryFile(suffix=".gguf", delete=False) as f:
             out_path = f.name
         try:
-            result = apply_batch(batch, toy_manifest_dict, out_path)
+            result = apply_batch(
+                batch, toy_manifest_dict, out_path, overwrite_confirm=True
+            )
             assert "Batch applied" in result
             assert "1 operation" in result
 
             manifest, _, _, _ = load_manifest(out_path)
             arr = manifest.tensors[0]
             from app import decode_tensor
+
             decoded = decode_tensor(out_path, arr, "auto")
             assert decoded[0, 0] == pytest.approx(99.0)
         finally:
@@ -143,15 +174,20 @@ class TestApplyBatch:
 
     def test_apply_multiple_operations(self, toy_manifest_dict):
         batch, _ = batch_add_scalar([], "tensor.test", "auto", "0,0", 100.0)
-        batch, _ = batch_add_transform(batch, "tensor.test", "auto", 1.0, 0.0, None, None)
+        batch, _ = batch_add_transform(
+            batch, "tensor.test", "auto", 1.0, 0.0, None, None
+        )
         with tempfile.NamedTemporaryFile(suffix=".gguf", delete=False) as f:
             out_path = f.name
         try:
-            result = apply_batch(batch, toy_manifest_dict, out_path)
+            result = apply_batch(
+                batch, toy_manifest_dict, out_path, overwrite_confirm=True
+            )
             assert "2 operation" in result
 
             manifest, _, _, _ = load_manifest(out_path)
             from app import decode_tensor
+
             decoded = decode_tensor(out_path, manifest.tensors[0], "auto")
             assert decoded[0, 0] == pytest.approx(100.0)
         finally:

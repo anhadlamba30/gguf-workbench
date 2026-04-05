@@ -1,28 +1,66 @@
+import os
 import struct
+import tempfile
 import numpy as np
 import pytest
 
 from app import (
-    BinaryReader, GGUFParseError, GGUFParser,
-    GGUF_TYPE_UINT8, GGUF_TYPE_INT8, GGUF_TYPE_UINT16, GGUF_TYPE_INT16,
-    GGUF_TYPE_UINT32, GGUF_TYPE_INT32, GGUF_TYPE_FLOAT32, GGUF_TYPE_BOOL,
-    GGUF_TYPE_STRING, GGUF_TYPE_ARRAY, GGUF_TYPE_UINT64, GGUF_TYPE_INT64,
+    BinaryReader,
+    GGUFParseError,
+    GGUFParser,
+    GGUF_TYPE_UINT8,
+    GGUF_TYPE_INT8,
+    GGUF_TYPE_UINT16,
+    GGUF_TYPE_INT16,
+    GGUF_TYPE_UINT32,
+    GGUF_TYPE_INT32,
+    GGUF_TYPE_FLOAT32,
+    GGUF_TYPE_BOOL,
+    GGUF_TYPE_STRING,
+    GGUF_TYPE_ARRAY,
+    GGUF_TYPE_UINT64,
+    GGUF_TYPE_INT64,
     GGUF_TYPE_FLOAT64,
-    GGUF_MAGIC, GGML_TYPE_F32, GGML_TYPE_F16, GGML_TYPE_BF16,
-    GGML_TYPE_NAMES, EDITABLE_TYPE_NAMES,
-    align_offset, GGUFParseError,
-    decode_tensor, encode_tensor,
-    transform_array, parse_indices, parse_slice_spec,
-    patch_scalar, patch_transform, patch_slice,
-    preview_transform, preview_slice_edit,
-    inspect_tensor, load_manifest, manifest_to_dict, manifest_from_dict,
-    manifest_summary, default_output_path, filter_tensor_table,
-    bf16_to_f32, f32_to_bf16, resolve_decode_kind,
+    GGUF_MAGIC,
+    GGML_TYPE_F32,
+    GGML_TYPE_F16,
+    GGML_TYPE_BF16,
+    GGML_TYPE_NAMES,
+    EDITABLE_TYPE_NAMES,
+    align_offset,
+    GGUFParseError,
+    decode_tensor,
+    encode_tensor,
+    transform_array,
+    parse_indices,
+    parse_slice_spec,
+    patch_scalar,
+    patch_transform,
+    patch_slice,
+    preview_transform,
+    preview_slice_edit,
+    inspect_tensor,
+    load_manifest,
+    manifest_to_dict,
+    manifest_from_dict,
+    manifest_summary,
+    default_output_path,
+    filter_tensor_table,
+    bf16_to_f32,
+    f32_to_bf16,
+    resolve_decode_kind,
     build_transform_preview,
-    BatchOperation, batch_op_to_dict, batch_op_from_dict,
-    batch_add_scalar, batch_add_transform, batch_add_slice,
-    apply_batch, clear_batch, render_batch_queue,
-    TensorInfo, GGUFManifest,
+    BatchOperation,
+    batch_op_to_dict,
+    batch_op_from_dict,
+    batch_add_scalar,
+    batch_add_transform,
+    batch_add_slice,
+    apply_batch,
+    clear_batch,
+    render_batch_queue,
+    TensorInfo,
+    GGUFManifest,
 )
 
 
@@ -54,7 +92,7 @@ def _build_gguf_with_metadata(kv_pairs, tensor_name="t", shape=(2, 3), values=No
     buf += b"\x00" * (tensor_data_start - header_end)
 
     if values is None:
-        values = [0., 1., 2., 3., 4., 5.]
+        values = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
     for v in values:
         buf += struct.pack("<f", v)
 
@@ -72,42 +110,58 @@ def _write_gguf(tmp_path, kv_pairs, **kwargs):
 def _kv_uint8(v):
     return ("k", GGUF_TYPE_UINT8, struct.pack("<B", v))
 
+
 def _kv_int8(v):
     return ("k", GGUF_TYPE_INT8, struct.pack("<b", v))
+
 
 def _kv_uint16(v):
     return ("k", GGUF_TYPE_UINT16, struct.pack("<H", v))
 
+
 def _kv_int16(v):
     return ("k", GGUF_TYPE_INT16, struct.pack("<h", v))
+
 
 def _kv_uint32(v):
     return ("k", GGUF_TYPE_UINT32, struct.pack("<I", v))
 
+
 def _kv_int32(v):
     return ("k", GGUF_TYPE_INT32, struct.pack("<i", v))
+
 
 def _kv_float32(v):
     return ("k", GGUF_TYPE_FLOAT32, struct.pack("<f", v))
 
+
 def _kv_bool(v):
     return ("k", GGUF_TYPE_BOOL, b"\x01" if v else b"\x00")
+
 
 def _kv_string(v):
     vb = v.encode("utf-8")
     return ("k", GGUF_TYPE_STRING, struct.pack("<Q", len(vb)) + vb)
 
+
 def _kv_array_uint32(items):
     inner = b""
     for x in items:
         inner += struct.pack("<I", x)
-    return ("k", GGUF_TYPE_ARRAY, struct.pack("<I", GGUF_TYPE_UINT32) + struct.pack("<Q", len(items)) + inner)
+    return (
+        "k",
+        GGUF_TYPE_ARRAY,
+        struct.pack("<I", GGUF_TYPE_UINT32) + struct.pack("<Q", len(items)) + inner,
+    )
+
 
 def _kv_uint64(v):
     return ("k", GGUF_TYPE_UINT64, struct.pack("<Q", v))
 
+
 def _kv_int64(v):
     return ("k", GGUF_TYPE_INT64, struct.pack("<q", v))
+
 
 def _kv_float64(v):
     return ("k", GGUF_TYPE_FLOAT64, struct.pack("<d", v))
@@ -266,17 +320,29 @@ class TestBuildTransformPreviewEdgeCases:
 
 class TestBatchApplyErrorPaths:
     def test_unknown_op_type_raises(self, toy_manifest_dict):
-        op = BatchOperation(op_type="bogus", tensor_name="tensor.test", decode_as="auto", parameters={})
+        op = BatchOperation(
+            op_type="bogus", tensor_name="tensor.test", decode_as="auto", parameters={}
+        )
         batch = [batch_op_to_dict(op)]
-        with pytest.raises(Exception) as exc_info:
-            apply_batch(batch, toy_manifest_dict, "/tmp/out.gguf")
-        assert "bogus" in str(exc_info.value)
+        with tempfile.NamedTemporaryFile(suffix=".gguf", delete=False) as f:
+            out_path = f.name
+        try:
+            with pytest.raises(Exception) as exc_info:
+                apply_batch(batch, toy_manifest_dict, out_path, overwrite_confirm=True)
+            assert "bogus" in str(exc_info.value)
+        finally:
+            os.unlink(out_path)
 
     def test_op_failure_propagates(self, toy_manifest_dict):
         batch, _ = batch_add_scalar([], "tensor.test", "auto", "99,99", 1.0)
-        with pytest.raises(Exception) as exc_info:
-            apply_batch(batch, toy_manifest_dict, "/tmp/out.gguf")
-        assert "Operation 1" in str(exc_info.value)
+        with tempfile.NamedTemporaryFile(suffix=".gguf", delete=False) as f:
+            out_path = f.name
+        try:
+            with pytest.raises(Exception) as exc_info:
+                apply_batch(batch, toy_manifest_dict, out_path, overwrite_confirm=True)
+            assert "Operation 1" in str(exc_info.value)
+        finally:
+            os.unlink(out_path)
 
 
 class TestManifestFromDictNone:
@@ -318,7 +384,10 @@ class TestDefaultOutputPathEdgeCases:
         assert default_output_path("/a/b/c.gguf") == "/a/b/c.patched.gguf"
 
     def test_dot_in_name(self):
-        assert default_output_path("/models/my.model.gguf") == "/models/my.model.patched.gguf"
+        assert (
+            default_output_path("/models/my.model.gguf")
+            == "/models/my.model.patched.gguf"
+        )
 
 
 class TestBatchOperationFromDict:
@@ -330,14 +399,31 @@ class TestBatchOperationFromDict:
         assert r.parameters["new_value"] == 1.0
 
     def test_round_trip_transform(self):
-        op = BatchOperation("transform", "x", "F32", {"scale": 2.0, "bias": 0.0, "clip_min": None, "clip_max": None})
+        op = BatchOperation(
+            "transform",
+            "x",
+            "F32",
+            {"scale": 2.0, "bias": 0.0, "clip_min": None, "clip_max": None},
+        )
         d = batch_op_to_dict(op)
         r = batch_op_from_dict(d)
         assert r.op_type == "transform"
         assert r.parameters["scale"] == 2.0
 
     def test_round_trip_slice(self):
-        op = BatchOperation("slice", "x", "auto", {"axis": 0, "index": 1, "mode": "set_constant", "value": 0.0, "scale": 1.0, "bias": 0.0})
+        op = BatchOperation(
+            "slice",
+            "x",
+            "auto",
+            {
+                "axis": 0,
+                "index": 1,
+                "mode": "set_constant",
+                "value": 0.0,
+                "scale": 1.0,
+                "bias": 0.0,
+            },
+        )
         d = batch_op_to_dict(op)
         r = batch_op_from_dict(d)
         assert r.op_type == "slice"

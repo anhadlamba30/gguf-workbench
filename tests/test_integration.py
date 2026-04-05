@@ -5,17 +5,36 @@ import numpy as np
 import pytest
 
 from app import (
-    BinaryReader, GGUFParseError, GGML_TYPE_NAMES,
-    GGUF_TYPE_UINT8, GGUF_TYPE_INT8, GGUF_TYPE_UINT16, GGUF_TYPE_INT16,
-    GGUF_TYPE_UINT32, GGUF_TYPE_INT32, GGUF_TYPE_FLOAT32, GGUF_TYPE_BOOL,
-    GGUF_TYPE_STRING, GGUF_TYPE_ARRAY, GGUF_TYPE_UINT64, GGUF_TYPE_INT64,
+    BinaryReader,
+    GGUFParseError,
+    GGML_TYPE_NAMES,
+    GGUF_TYPE_UINT8,
+    GGUF_TYPE_INT8,
+    GGUF_TYPE_UINT16,
+    GGUF_TYPE_INT16,
+    GGUF_TYPE_UINT32,
+    GGUF_TYPE_INT32,
+    GGUF_TYPE_FLOAT32,
+    GGUF_TYPE_BOOL,
+    GGUF_TYPE_STRING,
+    GGUF_TYPE_ARRAY,
+    GGUF_TYPE_UINT64,
+    GGUF_TYPE_INT64,
     GGUF_TYPE_FLOAT64,
-    GGUF_MAGIC, GGML_TYPE_F32, GGML_TYPE_F16, GGML_TYPE_BF16,
+    GGUF_MAGIC,
+    GGML_TYPE_F32,
+    GGML_TYPE_F16,
+    GGML_TYPE_BF16,
     align_offset,
-    inspect_tensor, on_load,
-    patch_scalar, patch_transform, patch_slice,
-    preview_transform, preview_slice_edit,
-    decode_tensor, encode_tensor,
+    inspect_tensor,
+    on_load,
+    patch_scalar,
+    patch_transform,
+    patch_slice,
+    preview_transform,
+    preview_slice_edit,
+    decode_tensor,
+    encode_tensor,
     manifest_from_dict,
 )
 
@@ -187,8 +206,13 @@ class TestPatchScalarIntegration:
             out = f.name
         try:
             patch_scalar(
-                toy_manifest_dict, "tensor.test", "auto",
-                "1,2", 42.0, out,
+                toy_manifest_dict,
+                "tensor.test",
+                "auto",
+                "1,2",
+                42.0,
+                out,
+                overwrite_confirm=True,
             )
             manifest_dict, _, _, _ = on_load(out)[:4]
             m = manifest_from_dict(manifest_dict)
@@ -201,8 +225,13 @@ class TestPatchScalarIntegration:
 class TestPreviewTransformIntegration:
     def test_preview_matches_math(self, toy_manifest_dict):
         text, df = preview_transform(
-            toy_manifest_dict, "tensor.test", "auto",
-            2.0, 0.0, None, None,
+            toy_manifest_dict,
+            "tensor.test",
+            "auto",
+            2.0,
+            0.0,
+            None,
+            None,
         )
         assert "Mean" in text
         assert len(df) > 0
@@ -212,8 +241,15 @@ class TestPreviewTransformIntegration:
 class TestPreviewSliceEditIntegration:
     def test_preview_set_constant(self, toy_manifest_dict):
         text, df = preview_slice_edit(
-            toy_manifest_dict, "tensor.test", "auto",
-            0, 0, "set_constant", 99.0, 1.0, 0.0,
+            toy_manifest_dict,
+            "tensor.test",
+            "auto",
+            0,
+            0,
+            "set_constant",
+            99.0,
+            1.0,
+            0.0,
         )
         assert "axis=0" in text
         assert 99.0 in df["after"].values
@@ -225,8 +261,15 @@ class TestPatchTransformIntegration:
             out = f.name
         try:
             patch_transform(
-                toy_manifest_dict, "tensor.test", "auto",
-                0.5, 0.0, None, None, out,
+                toy_manifest_dict,
+                "tensor.test",
+                "auto",
+                0.5,
+                0.0,
+                None,
+                None,
+                out,
+                overwrite_confirm=True,
             )
             manifest_dict, _, _, _ = on_load(out)[:4]
             m = manifest_from_dict(manifest_dict)
@@ -243,8 +286,17 @@ class TestPatchSliceIntegration:
             out = f.name
         try:
             patch_slice(
-                toy_manifest_dict, "tensor.test", "auto",
-                0, 1, "set_constant", 7.0, 1.0, 0.0, out,
+                toy_manifest_dict,
+                "tensor.test",
+                "auto",
+                0,
+                1,
+                "set_constant",
+                7.0,
+                1.0,
+                0.0,
+                out,
+                overwrite_confirm=True,
             )
             manifest_dict, _, _, _ = on_load(out)[:4]
             m = manifest_from_dict(manifest_dict)
