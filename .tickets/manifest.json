@@ -1,0 +1,110 @@
+{
+  "project": "GGUF Workbench V2.1",
+  "tickets": [
+    {
+      "id": "001",
+      "title": "mmap-based parsing for large models",
+      "priority": "P0",
+      "status": "done",
+      "file": "001-mmap-based-parsing.md"
+    },
+    {
+      "id": "002",
+      "title": "Add test suite",
+      "priority": "P0",
+      "status": "done",
+      "file": "002-add-test-suite.md"
+    },
+    {
+      "id": "003",
+      "title": "Input validation on output paths",
+      "priority": "P1",
+      "status": "done",
+      "file": "003-output-path-validation.md"
+    },
+    {
+      "id": "004",
+      "title": "Optimize batch write performance",
+      "priority": "P1",
+      "status": "open",
+      "file": "004-optimize-batch-write.md"
+    },
+    {
+      "id": "005",
+      "title": "Quantized tensor support (read/dequantize)",
+      "priority": "P1",
+      "status": "open",
+      "file": "005-quantized-tensor-support.md"
+    },
+    {
+      "id": "006",
+      "title": "Tensor search with regex",
+      "priority": "P2",
+      "status": "open",
+      "file": "006-tensor-search-regex.md"
+    },
+    {
+      "id": "007",
+      "title": "Diff view between original and patched",
+      "priority": "P2",
+      "status": "merged",
+      "file": "007-diff-view.md"
+    },
+    {
+      "id": "008",
+      "title": "Export/import batch configs as JSON",
+      "priority": "P2",
+      "status": "open",
+      "file": "008-export-import-batch-configs.md"
+    },
+    {
+      "id": "009",
+      "title": "Histogram visualization",
+      "priority": "P2",
+      "status": "open",
+      "file": "009-histogram-visualization.md"
+    },
+    {
+      "id": "010",
+      "title": "CLI headless mode",
+      "priority": "P2",
+      "status": "open",
+      "file": "010-cli-headless-mode.md"
+    },
+    {
+      "id": "011",
+      "title": "Undo/redo within session",
+      "priority": "P3",
+      "status": "open",
+      "file": "011-undo-redo.md"
+    },
+    {
+      "id": "012",
+      "title": "Progress bars for long operations",
+      "priority": "P3",
+      "status": "done",
+      "file": "012-progress-bars.md"
+    },
+    {
+      "id": "013",
+      "title": "Remove toy GGUFs from git tracking",
+      "priority": "P3",
+      "status": "open",
+      "file": "013-remove-toy-ggufs-from-git.md"
+    },
+    {
+      "id": "014",
+      "title": "Drag and drop file upload for GGUF files",
+      "priority": "P2",
+      "status": "merged",
+      "file": "014-drag-drop-upload.md"
+    },
+    {
+      "id": "015",
+      "title": "Refactor app.py into modular structure + add repo graph for AI agents",
+      "priority": "P1",
+      "status": "done",
+      "file": "015-modular-refactor.md"
+    }
+  ]
+}

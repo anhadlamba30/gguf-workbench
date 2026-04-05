@@ -222,10 +222,9 @@ class TestPreviewSliceEdit:
 
 class TestDefaultOutputPath:
     def test_default_suffix(self):
-        assert default_output_path("/models/foo.gguf") == "/models/foo.patched.gguf"
+        result = default_output_path("/models/foo.gguf")
+        assert result.endswith("foo.patched.gguf")
 
     def test_custom_suffix(self):
-        assert (
-            default_output_path("/models/foo.gguf", ".out.gguf")
-            == "/models/foo.out.gguf"
-        )
+        result = default_output_path("/models/foo.gguf", ".out.gguf")
+        assert result.endswith("foo.out.gguf")

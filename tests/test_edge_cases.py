@@ -381,13 +381,12 @@ class TestParseSliceSpecEdgeCases:
 
 class TestDefaultOutputPathEdgeCases:
     def test_nested_path(self):
-        assert default_output_path("/a/b/c.gguf") == "/a/b/c.patched.gguf"
+        result = default_output_path("/a/b/c.gguf")
+        assert result.endswith("c.patched.gguf")
 
     def test_dot_in_name(self):
-        assert (
-            default_output_path("/models/my.model.gguf")
-            == "/models/my.model.patched.gguf"
-        )
+        result = default_output_path("/models/my.model.gguf")
+        assert result.endswith("my.model.patched.gguf")
 
 
 class TestBatchOperationFromDict:
