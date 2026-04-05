@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+    #!/usr/bin/env python3
 """
 GGUF Workbench V2.1 - Main entry point.
 

@@ -5,6 +5,7 @@ from typing import Any, Tuple
 
 import numpy as np
 
+from .constants import EDITABLE_TYPE_NAMES
 from .parser import load_gguf
 from .tensor_ops import decode_tensor
 
@@ -81,6 +82,31 @@ def compare_gguf(
             tensor_orig = manifest_orig.tensor_map()[name]
             tensor_patched = manifest_patched.tensor_map()[name]
 
+            if (
+                tensor_orig.editable_kind not in EDITABLE_TYPE_NAMES
+                or tensor_patched.editable_kind not in EDITABLE_TYPE_NAMES
+            ):
+                results.append(
+                    {
+                        "tensor": name,
+                        "status": "skipped",
+                        "shape_orig": str(tensor_orig.shape),
+                        "shape_patched": str(tensor_patched.shape),
+                        "min_orig": "-",
+                        "max_orig": "-",
+                        "mean_orig": "-",
+                        "std_orig": "-",
+                        "min_patched": "-",
+                        "max_patched": "-",
+                        "mean_patched": "-",
+                        "std_patched": "-",
+                        "min_delta": "-",
+                        "max_delta": "-",
+                        "mean_delta": "-",
+                    }
+                )
+                continue
+
             arr_orig = decode_tensor(original_path, tensor_orig, "auto")
             arr_patched = decode_tensor(patched_path, tensor_patched, "auto")
 
@@ -130,12 +156,15 @@ def compare_gguf(
     added_count = sum(1 for r in results if r["status"] == "added")
     changed_count = sum(1 for r in results if r["status"] == "changed")
 
+    skipped_count = sum(1 for r in results if r["status"] == "skipped")
+
     summary = (
         f"### Comparison Results\n"
         f"- Total tensors: {len(results)}\n"
         f"- Changed: {changed_count}\n"
         f"- Added: {added_count}\n"
         f"- Removed: {removed_count}\n"
+        f"- Skipped (non-editable types): {skipped_count}\n"
     )
 
     return summary, df
