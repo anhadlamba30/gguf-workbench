@@ -46,4 +46,6 @@ def validate_output_path(
 
 def default_output_path(input_path: str, suffix: str = ".patched.gguf") -> str:
     p = Path(input_path)
-    return str(p.with_name(f"{p.stem}{suffix}"))
+    output_dir = Path.cwd() / "transformed_models"
+    output_dir.mkdir(exist_ok=True)
+    return str(output_dir / f"{p.stem}{suffix}")

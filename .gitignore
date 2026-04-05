@@ -7,3 +7,4 @@ venv/
 .DS_Store
 *.gguf
 .tickets/
+transformed_models/
