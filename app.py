@@ -563,11 +563,16 @@ def inspect_tensor(
 
 
 def compare_gguf(
-    original_path: str,
-    patched_path: str,
+    original_file,
+    patched_file,
     show_unchanged: bool = False,
     elementwise_threshold: int = 1000,
 ) -> Tuple[str, pd.DataFrame]:
+    if original_file is None or patched_file is None:
+        raise gr.Error("Please upload both original and patched GGUF files.")
+    original_path = original_file.name
+    patched_path = patched_file.name
+
     manifest_orig = load_gguf(original_path)
     manifest_patched = load_gguf(patched_path)
 
@@ -1107,9 +1112,15 @@ def clear_batch(batch_list: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]],
     return [], "### Batch Queue\nEmpty. Add operations above to get started."
 
 
-def on_load(file_path: str):
+def on_load(gguf_file):
+    if gguf_file is None:
+        raise gr.Error("Please upload a GGUF file.")
+    if isinstance(gguf_file, str):
+        file_path = gguf_file
+    else:
+        file_path = gguf_file.name
     if not file_path:
-        raise gr.Error("Please provide a local GGUF path.")
+        raise gr.Error("Please upload a GGUF file.")
     manifest, meta_df, tensor_df, choices = load_manifest(file_path)
     manifest_dict = manifest_to_dict(manifest)
     summary = manifest_summary(manifest)
@@ -1151,10 +1162,10 @@ def build_app() -> gr.Blocks:
         )
 
         with gr.Row():
-            gguf_path = gr.Textbox(
-                label="Local GGUF path",
-                placeholder="/absolute/path/to/model.gguf",
-                scale=4,
+            gguf_file = gr.File(
+                label="Upload GGUF file",
+                file_count="single",
+                file_types=[".gguf"],
             )
             load_btn = gr.Button("Load GGUF", variant="primary", scale=1)
 
@@ -1319,17 +1330,17 @@ def build_app() -> gr.Blocks:
                     "Load an original file and a patched file to see tensor-level differences."
                 )
                 with gr.Row():
-                    compare_original = gr.Textbox(
-                        label="Original GGUF path",
-                        placeholder="/path/to/original.gguf",
-                        scale=4,
+                    compare_original = gr.File(
+                        label="Original GGUF",
+                        file_count="single",
+                        file_types=[".gguf"],
                     )
-                    compare_patched = gr.Textbox(
-                        label="Patched GGUF path",
-                        placeholder="/path/to/patched.gguf",
-                        scale=4,
+                    compare_patched = gr.File(
+                        label="Patched GGUF",
+                        file_count="single",
+                        file_types=[".gguf"],
                     )
-                    compare_btn = gr.Button("Compare", variant="primary", scale=1)
+                    compare_btn = gr.Button("Compare", variant="primary")
                 with gr.Row():
                     compare_show_unchanged = gr.Checkbox(
                         label="Show unchanged tensors", value=False
@@ -1371,7 +1382,7 @@ def build_app() -> gr.Blocks:
 
         load_btn.click(
             on_load,
-            inputs=[gguf_path],
+            inputs=[gguf_file],
             outputs=[
                 manifest_state,
                 summary_md,
