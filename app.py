@@ -67,8 +67,10 @@ class BinaryReader:
     def read(self, n: int) -> bytes:
         end = self.pos + n
         if end > self._size:
-            raise GGUFParseError(f"Unexpected EOF while reading {n} bytes at offset {self.pos}")
-        out = bytes(self.data[self.pos:end])
+            raise GGUFParseError(
+                f"Unexpected EOF while reading {n} bytes at offset {self.pos}"
+            )
+        out = bytes(self.data[self.pos : end])
         self.pos = end
         return out
 
@@ -160,11 +162,12 @@ class GGUFManifest:
 @dataclass
 class BatchOperation:
     """Represents a single operation to be added to the batch queue."""
+
     op_type: str  # "scalar", "transform", "slice"
     tensor_name: str
     decode_as: str
     parameters: Dict[str, Any]
-    
+
     def display_label(self) -> str:
         """Generate a user-friendly label for this operation."""
         if self.op_type == "scalar":
@@ -197,7 +200,9 @@ class GGUFParser:
             raise GGUFParseError(f"Not a GGUF file: magic={magic!r}")
         version = r.u32()
         if version not in SUPPORTED_VERSIONS:
-            raise GGUFParseError(f"Unsupported GGUF version {version}. Supported: {sorted(SUPPORTED_VERSIONS)}")
+            raise GGUFParseError(
+                f"Unsupported GGUF version {version}. Supported: {sorted(SUPPORTED_VERSIONS)}"
+            )
         n_tensors = r.u64()
         n_kv = r.u64()
 
@@ -207,7 +212,9 @@ class GGUFParser:
             value_type = r.u32()
             metadata[key] = self._read_value(r, value_type)
 
-        alignment = int(metadata.get("general.alignment", DEFAULT_ALIGNMENT) or DEFAULT_ALIGNMENT)
+        alignment = int(
+            metadata.get("general.alignment", DEFAULT_ALIGNMENT) or DEFAULT_ALIGNMENT
+        )
         tensor_descs: List[Dict[str, Any]] = []
         for _ in range(n_tensors):
             name = r.string()
@@ -215,27 +222,33 @@ class GGUFParser:
             dims_stored = tuple(r.u64() for _ in range(n_dimensions))
             ggml_type = r.u32()
             offset = r.u64()
-            tensor_descs.append({
-                "name": name,
-                "dims_stored": dims_stored,
-                "shape": tuple(reversed(dims_stored)),
-                "ggml_type": ggml_type,
-                "offset": offset,
-            })
+            tensor_descs.append(
+                {
+                    "name": name,
+                    "dims_stored": dims_stored,
+                    "shape": tuple(reversed(dims_stored)),
+                    "ggml_type": ggml_type,
+                    "offset": offset,
+                }
+            )
 
         tensor_data_start = align_offset(r.tell(), alignment)
         file_size = self._mm.size()
         tensors: List[TensorInfo] = []
         for desc in tensor_descs:
             abs_off = tensor_data_start + int(desc["offset"])
-            n_elements = int(np.prod(desc["shape"], dtype=np.int64)) if desc["shape"] else 1
+            n_elements = (
+                int(np.prod(desc["shape"], dtype=np.int64)) if desc["shape"] else 1
+            )
             tensors.append(
                 TensorInfo(
                     name=desc["name"],
                     shape=tuple(int(x) for x in desc["shape"]),
                     stored_dims=tuple(int(x) for x in desc["dims_stored"]),
                     ggml_type=int(desc["ggml_type"]),
-                    ggml_type_name=GGML_TYPE_NAMES.get(int(desc["ggml_type"]), f"TYPE_{desc['ggml_type']}"),
+                    ggml_type_name=GGML_TYPE_NAMES.get(
+                        int(desc["ggml_type"]), f"TYPE_{desc['ggml_type']}"
+                    ),
                     offset=int(desc["offset"]),
                     abs_offset=int(abs_off),
                     n_elements=n_elements,
@@ -246,7 +259,11 @@ class GGUFParser:
 
         tensors_sorted = sorted(tensors, key=lambda t: t.abs_offset)
         for i, tensor in enumerate(tensors_sorted):
-            next_abs = tensors_sorted[i + 1].abs_offset if i + 1 < len(tensors_sorted) else file_size
+            next_abs = (
+                tensors_sorted[i + 1].abs_offset
+                if i + 1 < len(tensors_sorted)
+                else file_size
+            )
             tensor.n_bytes = int(next_abs - tensor.abs_offset)
             tensor.editable_kind = self._infer_editable_kind(tensor)
             if tensor.abs_offset > file_size or tensor.n_bytes < 0:
@@ -298,11 +315,20 @@ class GGUFParser:
         raise GGUFParseError(f"Unsupported metadata value type {value_type}")
 
     def _infer_editable_kind(self, tensor: TensorInfo) -> str:
-        if tensor.ggml_type == GGML_TYPE_F32 and tensor.n_bytes == tensor.n_elements * 4:
+        if (
+            tensor.ggml_type == GGML_TYPE_F32
+            and tensor.n_bytes == tensor.n_elements * 4
+        ):
             return "F32"
-        if tensor.ggml_type == GGML_TYPE_F16 and tensor.n_bytes == tensor.n_elements * 2:
+        if (
+            tensor.ggml_type == GGML_TYPE_F16
+            and tensor.n_bytes == tensor.n_elements * 2
+        ):
             return "F16"
-        if tensor.ggml_type == GGML_TYPE_BF16 and tensor.n_bytes == tensor.n_elements * 2:
+        if (
+            tensor.ggml_type == GGML_TYPE_BF16
+            and tensor.n_bytes == tensor.n_elements * 2
+        ):
             return "BF16"
         if tensor.n_bytes == tensor.n_elements * 4:
             return "F32"
@@ -350,7 +376,7 @@ def decode_tensor(path: str, tensor: TensorInfo, decode_as: str = "auto") -> np.
     with open(path, "rb") as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
         try:
-            raw = mm[tensor.abs_offset:tensor.abs_offset + tensor.n_bytes]
+            raw = mm[tensor.abs_offset : tensor.abs_offset + tensor.n_bytes]
         finally:
             mm.close()
     if kind == "F32":
@@ -364,7 +390,9 @@ def decode_tensor(path: str, tensor: TensorInfo, decode_as: str = "auto") -> np.
     return arr.reshape(tensor.shape) if tensor.shape else arr
 
 
-def encode_tensor(arr_f32: np.ndarray, tensor: TensorInfo, decode_as: str = "auto") -> bytes:
+def encode_tensor(
+    arr_f32: np.ndarray, tensor: TensorInfo, decode_as: str = "auto"
+) -> bytes:
     kind = resolve_decode_kind(tensor, decode_as)
     arr_f32 = np.asarray(arr_f32, dtype=np.float32)
     if kind == "F32":
@@ -376,7 +404,9 @@ def encode_tensor(arr_f32: np.ndarray, tensor: TensorInfo, decode_as: str = "aut
     else:
         raise gr.Error(f"Tensor '{tensor.name}' cannot be written as {kind}.")
     if len(data) != tensor.n_bytes:
-        raise gr.Error(f"Encoded byte length mismatch for {tensor.name}: {len(data)} != {tensor.n_bytes}")
+        raise gr.Error(
+            f"Encoded byte length mismatch for {tensor.name}: {len(data)} != {tensor.n_bytes}"
+        )
     return data
 
 
@@ -412,11 +442,13 @@ def manifest_from_dict(data: Dict[str, Any]) -> GGUFManifest:
 
 
 def manifest_summary(manifest: GGUFManifest) -> str:
-    editable = sum(1 for t in manifest.tensors if t.editable_kind in EDITABLE_TYPE_NAMES)
+    editable = sum(
+        1 for t in manifest.tensors if t.editable_kind in EDITABLE_TYPE_NAMES
+    )
     return (
         f"### {Path(manifest.path).name}\n"
         f"- Version: **{manifest.version}**\n"
-        f"- File size: **{manifest.file_size / (1024 ** 3):.4f} GiB**\n"
+        f"- File size: **{manifest.file_size / (1024**3):.4f} GiB**\n"
         f"- Metadata entries: **{manifest.n_kv}**\n"
         f"- Tensors: **{manifest.n_tensors}**\n"
         f"- Alignment: **{manifest.alignment}**\n"
@@ -445,6 +477,47 @@ def default_output_path(input_path: str, suffix: str = ".patched.gguf") -> str:
     return str(p.with_name(f"{p.stem}{suffix}"))
 
 
+def validate_output_path(
+    input_path: str, output_path: str, overwrite_confirm: bool = False
+) -> Tuple[str, str]:
+    """Validate output path before writing a patched GGUF file.
+
+    Returns (resolved_output_path, warning_message).
+    Raises gr.Error on validation failure.
+    """
+    if not output_path or not output_path.strip():
+        raise gr.Error("Please specify an output path.")
+
+    input_resolved = Path(input_path).resolve()
+    output_resolved = Path(output_path.strip()).resolve()
+
+    if input_resolved == output_resolved:
+        raise gr.Error(
+            "Output path cannot be the same as the input file. Choose a different output path."
+        )
+
+    parent = output_resolved.parent
+    if not parent.exists():
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise gr.Error(f"Cannot create parent directory '{parent}': {e}")
+
+    if not os.access(str(parent), os.W_OK):
+        raise gr.Error(f"Output directory is not writable: '{parent}'")
+
+    warning = ""
+    if output_resolved.exists():
+        if not overwrite_confirm:
+            raise gr.Error(
+                f"Output file already exists: '{output_path}'. "
+                "Enable 'Confirm overwrite' to proceed, or choose a different path."
+            )
+        warning = f"Overwriting existing file: `{output_path}`\n\n"
+
+    return str(output_resolved), warning
+
+
 def filter_tensor_table(manifest_dict: Dict[str, Any], query: str, editable_only: bool):
     manifest = manifest_from_dict(manifest_dict)
     rows = [t.to_row() for t in manifest.tensors]
@@ -457,7 +530,9 @@ def filter_tensor_table(manifest_dict: Dict[str, Any], query: str, editable_only
     return df.reset_index(drop=True)
 
 
-def inspect_tensor(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str, max_items: int):
+def inspect_tensor(
+    manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str, max_items: int
+):
     manifest = manifest_from_dict(manifest_dict)
     tensor = manifest.tensor_map().get(tensor_name)
     if tensor is None:
@@ -465,7 +540,9 @@ def inspect_tensor(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: s
     arr = decode_tensor(manifest.path, tensor, decode_as)
     flat = arr.reshape(-1)
     n = min(int(max_items), flat.shape[0])
-    preview = pd.DataFrame([{"flat_index": i, "value": float(v)} for i, v in enumerate(flat[:n])])
+    preview = pd.DataFrame(
+        [{"flat_index": i, "value": float(v)} for i, v in enumerate(flat[:n])]
+    )
     text = (
         f"### Tensor: `{tensor.name}`\n"
         f"- Shape: **{list(tensor.shape)}**\n"
@@ -483,7 +560,9 @@ def inspect_tensor(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: s
 def parse_indices(indices_text: str, shape: Sequence[int]) -> Tuple[int, ...]:
     parts = [p.strip() for p in indices_text.split(",") if p.strip()]
     if len(parts) != len(shape):
-        raise gr.Error(f"Expected {len(shape)} indices for shape {list(shape)}, got {len(parts)}")
+        raise gr.Error(
+            f"Expected {len(shape)} indices for shape {list(shape)}, got {len(parts)}"
+        )
     idxs = tuple(int(p) for p in parts)
     for i, dim in zip(idxs, shape):
         if i < 0 or i >= dim:
@@ -491,7 +570,13 @@ def parse_indices(indices_text: str, shape: Sequence[int]) -> Tuple[int, ...]:
     return idxs
 
 
-def write_tensor_patch(manifest: GGUFManifest, tensor: TensorInfo, arr: np.ndarray, decode_as: str, output_path: str):
+def write_tensor_patch(
+    manifest: GGUFManifest,
+    tensor: TensorInfo,
+    arr: np.ndarray,
+    decode_as: str,
+    output_path: str,
+):
     payload = encode_tensor(arr, tensor, decode_as)
     shutil.copyfile(manifest.path, output_path)
     with open(output_path, "r+b") as f:
@@ -499,32 +584,50 @@ def write_tensor_patch(manifest: GGUFManifest, tensor: TensorInfo, arr: np.ndarr
         f.write(payload)
 
 
-def patch_scalar(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str, indices_text: str, new_value: float, output_path: str):
+def patch_scalar(
+    manifest_dict: Dict[str, Any],
+    tensor_name: str,
+    decode_as: str,
+    indices_text: str,
+    new_value: float,
+    output_path: str,
+    overwrite_confirm: bool = False,
+):
     manifest = manifest_from_dict(manifest_dict)
     tensor = manifest.tensor_map()[tensor_name]
     output_path = output_path or default_output_path(manifest.path)
+    validated_path, warning = validate_output_path(
+        manifest.path, output_path, overwrite_confirm
+    )
     arr = decode_tensor(manifest.path, tensor, decode_as)
     idxs = parse_indices(indices_text, arr.shape)
     before = float(arr[idxs])
     arr[idxs] = np.float32(new_value)
-    write_tensor_patch(manifest, tensor, arr, decode_as, output_path)
-    return f"Patched `{tensor.name}{idxs}` from **{before:.8g}** to **{float(new_value):.8g}**\n\nSaved: `{output_path}`"
+    write_tensor_patch(manifest, tensor, arr, decode_as, validated_path)
+    return (
+        warning
+        + f"Patched `{tensor.name}{idxs}` from **{before:.8g}** to **{float(new_value):.8g}**\n\nSaved: `{validated_path}`"
+    )
 
 
-def build_transform_preview(arr_before: np.ndarray, arr_after: np.ndarray, preview_n: int = 16) -> Tuple[str, pd.DataFrame]:
+def build_transform_preview(
+    arr_before: np.ndarray, arr_after: np.ndarray, preview_n: int = 16
+) -> Tuple[str, pd.DataFrame]:
     flat_before = arr_before.reshape(-1)
     flat_after = arr_after.reshape(-1)
     delta = flat_after - flat_before
     n = min(preview_n, flat_before.shape[0])
-    preview = pd.DataFrame([
-        {
-            "flat_index": i,
-            "before": float(flat_before[i]),
-            "after": float(flat_after[i]),
-            "delta": float(delta[i]),
-        }
-        for i in range(n)
-    ])
+    preview = pd.DataFrame(
+        [
+            {
+                "flat_index": i,
+                "before": float(flat_before[i]),
+                "after": float(flat_after[i]),
+                "delta": float(delta[i]),
+            }
+            for i in range(n)
+        ]
+    )
     text = (
         "### Before / After Preview\n"
         f"- Mean: **{float(flat_before.mean()):.6g} → {float(flat_after.mean()):.6g}**\n"
@@ -536,16 +639,38 @@ def build_transform_preview(arr_before: np.ndarray, arr_after: np.ndarray, previ
     return text, preview
 
 
-def transform_array(arr: np.ndarray, scale: float, bias: float, clip_min: Optional[float], clip_max: Optional[float]) -> np.ndarray:
+def transform_array(
+    arr: np.ndarray,
+    scale: float,
+    bias: float,
+    clip_min: Optional[float],
+    clip_max: Optional[float],
+) -> np.ndarray:
     out = arr.astype(np.float32) * np.float32(scale) + np.float32(bias)
-    lo = None if clip_min is None or (isinstance(clip_min, float) and math.isnan(clip_min)) else clip_min
-    hi = None if clip_max is None or (isinstance(clip_max, float) and math.isnan(clip_max)) else clip_max
+    lo = (
+        None
+        if clip_min is None or (isinstance(clip_min, float) and math.isnan(clip_min))
+        else clip_min
+    )
+    hi = (
+        None
+        if clip_max is None or (isinstance(clip_max, float) and math.isnan(clip_max))
+        else clip_max
+    )
     if lo is not None or hi is not None:
         out = np.clip(out, -np.inf if lo is None else lo, np.inf if hi is None else hi)
     return out
 
 
-def preview_transform(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str, scale: float, bias: float, clip_min: Optional[float], clip_max: Optional[float]):
+def preview_transform(
+    manifest_dict: Dict[str, Any],
+    tensor_name: str,
+    decode_as: str,
+    scale: float,
+    bias: float,
+    clip_min: Optional[float],
+    clip_max: Optional[float],
+):
     manifest = manifest_from_dict(manifest_dict)
     tensor = manifest.tensor_map()[tensor_name]
     before = decode_tensor(manifest.path, tensor, decode_as)
@@ -553,29 +678,56 @@ def preview_transform(manifest_dict: Dict[str, Any], tensor_name: str, decode_as
     return build_transform_preview(before, after)
 
 
-def patch_transform(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str, scale: float, bias: float, clip_min: Optional[float], clip_max: Optional[float], output_path: str):
+def patch_transform(
+    manifest_dict: Dict[str, Any],
+    tensor_name: str,
+    decode_as: str,
+    scale: float,
+    bias: float,
+    clip_min: Optional[float],
+    clip_max: Optional[float],
+    output_path: str,
+    overwrite_confirm: bool = False,
+):
     manifest = manifest_from_dict(manifest_dict)
     tensor = manifest.tensor_map()[tensor_name]
     output_path = output_path or default_output_path(manifest.path, ".transformed.gguf")
+    validated_path, warning = validate_output_path(
+        manifest.path, output_path, overwrite_confirm
+    )
     before = decode_tensor(manifest.path, tensor, decode_as)
     after = transform_array(before, scale, bias, clip_min, clip_max)
-    write_tensor_patch(manifest, tensor, after, decode_as, output_path)
+    write_tensor_patch(manifest, tensor, after, decode_as, validated_path)
     preview_text, _ = build_transform_preview(before, after)
-    return preview_text + f"\n\nSaved: `{output_path}`"
+    return warning + preview_text + f"\n\nSaved: `{validated_path}`"
 
 
-def parse_slice_spec(arr: np.ndarray, axis: int, index: int) -> Tuple[np.ndarray, Tuple[Any, ...]]:
+def parse_slice_spec(
+    arr: np.ndarray, axis: int, index: int
+) -> Tuple[np.ndarray, Tuple[Any, ...]]:
     if axis < 0 or axis >= arr.ndim:
         raise gr.Error(f"Axis {axis} out of bounds for tensor ndim {arr.ndim}")
     if index < 0 or index >= arr.shape[axis]:
-        raise gr.Error(f"Index {index} out of bounds for axis {axis} with size {arr.shape[axis]}")
+        raise gr.Error(
+            f"Index {index} out of bounds for axis {axis} with size {arr.shape[axis]}"
+        )
     slicer = [slice(None)] * arr.ndim
     slicer[axis] = index
     slicer_tuple = tuple(slicer)
     return arr[slicer_tuple], slicer_tuple
 
 
-def preview_slice_edit(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str, axis: int, index: int, mode: str, value: float, scale: float, bias: float):
+def preview_slice_edit(
+    manifest_dict: Dict[str, Any],
+    tensor_name: str,
+    decode_as: str,
+    axis: int,
+    index: int,
+    mode: str,
+    value: float,
+    scale: float,
+    bias: float,
+):
     manifest = manifest_from_dict(manifest_dict)
     tensor = manifest.tensor_map()[tensor_name]
     arr = decode_tensor(manifest.path, tensor, decode_as)
@@ -591,10 +743,25 @@ def preview_slice_edit(manifest_dict: Dict[str, Any], tensor_name: str, decode_a
     return preview_text, preview_df
 
 
-def patch_slice(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str, axis: int, index: int, mode: str, value: float, scale: float, bias: float, output_path: str):
+def patch_slice(
+    manifest_dict: Dict[str, Any],
+    tensor_name: str,
+    decode_as: str,
+    axis: int,
+    index: int,
+    mode: str,
+    value: float,
+    scale: float,
+    bias: float,
+    output_path: str,
+    overwrite_confirm: bool = False,
+):
     manifest = manifest_from_dict(manifest_dict)
     tensor = manifest.tensor_map()[tensor_name]
     output_path = output_path or default_output_path(manifest.path, ".slice.gguf")
+    validated_path, warning = validate_output_path(
+        manifest.path, output_path, overwrite_confirm
+    )
     arr = decode_tensor(manifest.path, tensor, decode_as)
     slice_view, slicer = parse_slice_spec(arr, int(axis), int(index))
     before = np.array(slice_view, copy=True)
@@ -603,12 +770,18 @@ def patch_slice(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str,
     else:
         arr[slicer] = slice_view * np.float32(scale) + np.float32(bias)
     after = np.array(arr[slicer], copy=True)
-    write_tensor_patch(manifest, tensor, arr, decode_as, output_path)
+    write_tensor_patch(manifest, tensor, arr, decode_as, validated_path)
     preview_text, _ = build_transform_preview(before, after)
-    return f"### Slice Patch Applied (axis={axis}, index={index})\n\n" + preview_text + f"\n\nSaved: `{output_path}`"
+    return (
+        warning
+        + f"### Slice Patch Applied (axis={axis}, index={index})\n\n"
+        + preview_text
+        + f"\n\nSaved: `{validated_path}`"
+    )
 
 
 # ==================== BATCH OPERATIONS ====================
+
 
 def batch_op_to_dict(op: BatchOperation) -> Dict[str, Any]:
     """Serialize a batch operation."""
@@ -630,7 +803,13 @@ def batch_op_from_dict(data: Dict[str, Any]) -> BatchOperation:
     )
 
 
-def batch_add_scalar(batch_list: List[Dict[str, Any]], tensor_name: str, decode_as: str, indices_text: str, new_value: float) -> Tuple[List[Dict[str, Any]], str]:
+def batch_add_scalar(
+    batch_list: List[Dict[str, Any]],
+    tensor_name: str,
+    decode_as: str,
+    indices_text: str,
+    new_value: float,
+) -> Tuple[List[Dict[str, Any]], str]:
     """Add a scalar patch operation to the batch."""
     if not tensor_name:
         raise gr.Error("Please select a tensor")
@@ -645,7 +824,15 @@ def batch_add_scalar(batch_list: List[Dict[str, Any]], tensor_name: str, decode_
     return batch_list, msg
 
 
-def batch_add_transform(batch_list: List[Dict[str, Any]], tensor_name: str, decode_as: str, scale: float, bias: float, clip_min: Optional[float], clip_max: Optional[float]) -> Tuple[List[Dict[str, Any]], str]:
+def batch_add_transform(
+    batch_list: List[Dict[str, Any]],
+    tensor_name: str,
+    decode_as: str,
+    scale: float,
+    bias: float,
+    clip_min: Optional[float],
+    clip_max: Optional[float],
+) -> Tuple[List[Dict[str, Any]], str]:
     """Add a transform operation to the batch."""
     if not tensor_name:
         raise gr.Error("Please select a tensor")
@@ -653,14 +840,29 @@ def batch_add_transform(batch_list: List[Dict[str, Any]], tensor_name: str, deco
         op_type="transform",
         tensor_name=tensor_name,
         decode_as=decode_as,
-        parameters={"scale": scale, "bias": bias, "clip_min": clip_min, "clip_max": clip_max},
+        parameters={
+            "scale": scale,
+            "bias": bias,
+            "clip_min": clip_min,
+            "clip_max": clip_max,
+        },
     )
     batch_list.append(batch_op_to_dict(op))
     msg = f"✓ Added: {op.display_label()}"
     return batch_list, msg
 
 
-def batch_add_slice(batch_list: List[Dict[str, Any]], tensor_name: str, decode_as: str, axis: int, index: int, mode: str, value: float, scale: float, bias: float) -> Tuple[List[Dict[str, Any]], str]:
+def batch_add_slice(
+    batch_list: List[Dict[str, Any]],
+    tensor_name: str,
+    decode_as: str,
+    axis: int,
+    index: int,
+    mode: str,
+    value: float,
+    scale: float,
+    bias: float,
+) -> Tuple[List[Dict[str, Any]], str]:
     """Add a slice patch operation to the batch."""
     if not tensor_name:
         raise gr.Error("Please select a tensor")
@@ -668,7 +870,14 @@ def batch_add_slice(batch_list: List[Dict[str, Any]], tensor_name: str, decode_a
         op_type="slice",
         tensor_name=tensor_name,
         decode_as=decode_as,
-        parameters={"axis": axis, "index": index, "mode": mode, "value": value, "scale": scale, "bias": bias},
+        parameters={
+            "axis": axis,
+            "index": index,
+            "mode": mode,
+            "value": value,
+            "scale": scale,
+            "bias": bias,
+        },
     )
     batch_list.append(batch_op_to_dict(op))
     msg = f"✓ Added: {op.display_label()}"
@@ -679,7 +888,7 @@ def render_batch_queue(batch_list: List[Dict[str, Any]]) -> str:
     """Render the batch queue as markdown."""
     if not batch_list:
         return "### Batch Queue\nEmpty. Add operations above to get started."
-    
+
     lines = ["### Batch Queue", f"**{len(batch_list)} operation(s) pending:**\n"]
     for i, op_dict in enumerate(batch_list, 1):
         op = batch_op_from_dict(op_dict)
@@ -687,33 +896,42 @@ def render_batch_queue(batch_list: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def apply_batch(batch_list: List[Dict[str, Any]], manifest_dict: Dict[str, Any], output_path: str, progress=gr.Progress()) -> str:
+def apply_batch(
+    batch_list: List[Dict[str, Any]],
+    manifest_dict: Dict[str, Any],
+    output_path: str,
+    overwrite_confirm: bool = False,
+    progress=gr.Progress(),
+) -> str:
     """Apply all queued batch operations to a copy of the original GGUF."""
     if not batch_list:
         raise gr.Error("Batch is empty. Add operations first.")
     if not output_path:
         raise gr.Error("Please specify an output path.")
-    
+
     manifest = manifest_from_dict(manifest_dict)
-    
+    validated_path, warning = validate_output_path(
+        manifest.path, output_path, overwrite_confirm
+    )
+
     # Start fresh from the original file
     progress(0, desc="Copying original file...")
-    shutil.copyfile(manifest.path, output_path)
-    
+    shutil.copyfile(manifest.path, validated_path)
+
     total = len(batch_list)
-    
+
     # Apply each operation to the copied file
     for i, op_dict in enumerate(batch_list, 1):
         op = batch_op_from_dict(op_dict)
         tensor = manifest.tensor_map().get(op.tensor_name)
         if tensor is None:
             raise gr.Error(f"Operation {i}: Tensor '{op.tensor_name}' not found")
-        
+
         progress(i / total, desc=f"{i}/{total}: {op.display_label()}")
-        
+
         # Read current state from the output file
-        arr = decode_tensor(output_path, tensor, op.decode_as)
-        
+        arr = decode_tensor(validated_path, tensor, op.decode_as)
+
         try:
             if op.op_type == "scalar":
                 indices = parse_indices(op.parameters["indices"], arr.shape)
@@ -727,22 +945,31 @@ def apply_batch(batch_list: List[Dict[str, Any]], manifest_dict: Dict[str, Any],
                     op.parameters.get("clip_max"),
                 )
             elif op.op_type == "slice":
-                slice_view, slicer = parse_slice_spec(arr, int(op.parameters["axis"]), int(op.parameters["index"]))
+                slice_view, slicer = parse_slice_spec(
+                    arr, int(op.parameters["axis"]), int(op.parameters["index"])
+                )
                 if op.parameters["mode"] == "set_constant":
                     arr[slicer] = np.float32(op.parameters["value"])
                 else:
-                    arr[slicer] = slice_view * np.float32(op.parameters["scale"]) + np.float32(op.parameters["bias"])
+                    arr[slicer] = slice_view * np.float32(
+                        op.parameters["scale"]
+                    ) + np.float32(op.parameters["bias"])
             else:
                 raise gr.Error(f"Operation {i}: Unknown operation type {op.op_type}")
-            
+
             # Write the modified array back
-            write_tensor_patch(manifest, tensor, arr, op.decode_as, output_path)
+            write_tensor_patch(manifest, tensor, arr, op.decode_as, validated_path)
         except Exception as e:
-            raise gr.Error(f"Operation {i} ({op.op_type} on {op.tensor_name}) failed: {str(e)}")
-    
+            raise gr.Error(
+                f"Operation {i} ({op.op_type} on {op.tensor_name}) failed: {str(e)}"
+            )
+
     progress(1.0, desc="Done!")
-    
-    return f"✓ **Batch applied successfully!**\n\nApplied {len(batch_list)} operation(s).\n\nSaved to: `{output_path}`"
+
+    return (
+        warning
+        + f"✓ **Batch applied successfully!**\n\nApplied {len(batch_list)} operation(s).\n\nSaved to: `{validated_path}`"
+    )
 
 
 def clear_batch(batch_list: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], str]:
@@ -794,7 +1021,11 @@ def build_app() -> gr.Blocks:
         )
 
         with gr.Row():
-            gguf_path = gr.Textbox(label="Local GGUF path", placeholder="/absolute/path/to/model.gguf", scale=4)
+            gguf_path = gr.Textbox(
+                label="Local GGUF path",
+                placeholder="/absolute/path/to/model.gguf",
+                scale=4,
+            )
             load_btn = gr.Button("Load GGUF", variant="primary", scale=1)
 
         summary_md = gr.Markdown()
@@ -803,7 +1034,10 @@ def build_app() -> gr.Blocks:
             with gr.Tab("Metadata + Tensors"):
                 meta_df = gr.Dataframe(label="Metadata")
                 with gr.Row():
-                    filter_query = gr.Textbox(label="Filter tensor names", placeholder="attn, mlp, norm, embd...")
+                    filter_query = gr.Textbox(
+                        label="Filter tensor names",
+                        placeholder="attn, mlp, norm, embd...",
+                    )
                     editable_only = gr.Checkbox(label="Editable only", value=False)
                     filter_btn = gr.Button("Apply filter")
                 tensor_df = gr.Dataframe(label="Tensor list")
@@ -811,8 +1045,14 @@ def build_app() -> gr.Blocks:
             with gr.Tab("Inspect"):
                 with gr.Row():
                     inspect_tensor_name = gr.Dropdown(label="Tensor", choices=[])
-                    inspect_decode_as = gr.Radio(label="Decode as", choices=["auto", "F32", "F16", "BF16"], value="auto")
-                    inspect_max = gr.Number(label="Preview elements", value=32, precision=0)
+                    inspect_decode_as = gr.Radio(
+                        label="Decode as",
+                        choices=["auto", "F32", "F16", "BF16"],
+                        value="auto",
+                    )
+                    inspect_max = gr.Number(
+                        label="Preview elements", value=32, precision=0
+                    )
                     inspect_btn = gr.Button("Inspect", variant="primary")
                 inspect_stats = gr.Markdown()
                 inspect_preview = gr.Dataframe(label="Flattened preview")
@@ -826,14 +1066,27 @@ def build_app() -> gr.Blocks:
                 )
                 with gr.Row():
                     scalar_tensor_name = gr.Dropdown(label="Tensor", choices=[])
-                    scalar_decode_as = gr.Radio(label="Decode as", choices=["auto", "F32", "F16", "BF16"], value="auto")
+                    scalar_decode_as = gr.Radio(
+                        label="Decode as",
+                        choices=["auto", "F32", "F16", "BF16"],
+                        value="auto",
+                    )
                 with gr.Row():
-                    scalar_indices = gr.Textbox(label="Indices (comma-separated)", placeholder="0,1,2")
+                    scalar_indices = gr.Textbox(
+                        label="Indices (comma-separated)", placeholder="0,1,2"
+                    )
                     scalar_value = gr.Number(label="New value", value=0.0)
                 with gr.Row():
-                    scalar_output = gr.Textbox(label="Output GGUF path (for direct apply)")
+                    scalar_output = gr.Textbox(
+                        label="Output GGUF path (for direct apply)"
+                    )
                     with gr.Column():
-                        scalar_add_batch_btn = gr.Button("Add to batch", variant="secondary")
+                        scalar_add_batch_btn = gr.Button(
+                            "Add to batch", variant="secondary"
+                        )
+                        scalar_overwrite_confirm = gr.Checkbox(
+                            label="Confirm overwrite", value=False
+                        )
                         scalar_btn = gr.Button("Apply now", variant="primary")
                 scalar_add_batch_msg = gr.Markdown()
                 scalar_result = gr.Markdown()
@@ -849,16 +1102,31 @@ def build_app() -> gr.Blocks:
                 )
                 with gr.Row():
                     transform_tensor_name = gr.Dropdown(label="Tensor", choices=[])
-                    transform_decode_as = gr.Radio(label="Decode as", choices=["auto", "F32", "F16", "BF16"], value="auto")
+                    transform_decode_as = gr.Radio(
+                        label="Decode as",
+                        choices=["auto", "F32", "F16", "BF16"],
+                        value="auto",
+                    )
                 with gr.Row():
                     transform_scale = gr.Number(label="Scale", value=1.0)
                     transform_bias = gr.Number(label="Bias", value=0.0)
-                    transform_clip_min = gr.Number(label="Clip min (optional)", value=float("nan"))
-                    transform_clip_max = gr.Number(label="Clip max (optional)", value=float("nan"))
-                transform_output = gr.Textbox(label="Output GGUF path (for direct apply)")
+                    transform_clip_min = gr.Number(
+                        label="Clip min (optional)", value=float("nan")
+                    )
+                    transform_clip_max = gr.Number(
+                        label="Clip max (optional)", value=float("nan")
+                    )
+                transform_output = gr.Textbox(
+                    label="Output GGUF path (for direct apply)"
+                )
                 with gr.Row():
                     preview_transform_btn = gr.Button("Preview transform")
-                    transform_add_batch_btn = gr.Button("Add to batch", variant="secondary")
+                    transform_add_batch_btn = gr.Button(
+                        "Add to batch", variant="secondary"
+                    )
+                    transform_overwrite_confirm = gr.Checkbox(
+                        label="Confirm overwrite", value=False
+                    )
                     transform_btn = gr.Button("Apply now", variant="primary")
                 transform_preview_md = gr.Markdown()
                 transform_preview_df = gr.Dataframe(label="Before / After preview")
@@ -876,19 +1144,38 @@ def build_app() -> gr.Blocks:
                 )
                 with gr.Row():
                     slice_tensor_name = gr.Dropdown(label="Tensor", choices=[])
-                    slice_decode_as = gr.Radio(label="Decode as", choices=["auto", "F32", "F16", "BF16"], value="auto")
+                    slice_decode_as = gr.Radio(
+                        label="Decode as",
+                        choices=["auto", "F32", "F16", "BF16"],
+                        value="auto",
+                    )
                 with gr.Row():
                     slice_axis = gr.Number(label="Axis", value=0, precision=0)
-                    slice_index = gr.Number(label="Index along axis", value=0, precision=0)
-                    slice_mode = gr.Radio(label="Mode", choices=["set_constant", "scale_and_bias"], value="set_constant")
+                    slice_index = gr.Number(
+                        label="Index along axis", value=0, precision=0
+                    )
+                    slice_mode = gr.Radio(
+                        label="Mode",
+                        choices=["set_constant", "scale_and_bias"],
+                        value="set_constant",
+                    )
                 with gr.Row():
-                    slice_value = gr.Number(label="Value (used for set_constant)", value=0.0)
-                    slice_scale = gr.Number(label="Scale (used for scale_and_bias)", value=1.0)
-                    slice_bias = gr.Number(label="Bias (used for scale_and_bias)", value=0.0)
+                    slice_value = gr.Number(
+                        label="Value (used for set_constant)", value=0.0
+                    )
+                    slice_scale = gr.Number(
+                        label="Scale (used for scale_and_bias)", value=1.0
+                    )
+                    slice_bias = gr.Number(
+                        label="Bias (used for scale_and_bias)", value=0.0
+                    )
                 slice_output = gr.Textbox(label="Output GGUF path (for direct apply)")
                 with gr.Row():
                     preview_slice_btn = gr.Button("Preview slice edit")
                     slice_add_batch_btn = gr.Button("Add to batch", variant="secondary")
+                    slice_overwrite_confirm = gr.Checkbox(
+                        label="Confirm overwrite", value=False
+                    )
                     slice_btn = gr.Button("Apply now", variant="primary")
                 slice_preview_md = gr.Markdown()
                 slice_preview_df = gr.Dataframe(label="Slice before / after preview")
@@ -905,10 +1192,19 @@ def build_app() -> gr.Blocks:
                     "3. Specify the final output path\n"
                     "4. Click **Apply batch** to execute all operations in sequence"
                 )
-                batch_queue_md = gr.Markdown(value="### Batch Queue\nEmpty. Add operations above to get started.")
-                batch_output = gr.Textbox(label="Output GGUF path", placeholder="/path/to/output.batch.gguf")
+                batch_queue_md = gr.Markdown(
+                    value="### Batch Queue\nEmpty. Add operations above to get started."
+                )
+                batch_output = gr.Textbox(
+                    label="Output GGUF path", placeholder="/path/to/output.batch.gguf"
+                )
+                batch_overwrite_confirm = gr.Checkbox(
+                    label="Confirm overwrite", value=False
+                )
                 with gr.Row():
-                    batch_apply_btn = gr.Button("Apply batch", variant="primary", scale=2)
+                    batch_apply_btn = gr.Button(
+                        "Apply batch", variant="primary", scale=2
+                    )
                     batch_clear_btn = gr.Button("Clear batch", variant="stop", scale=1)
                 batch_result = gr.Markdown()
 
@@ -916,44 +1212,158 @@ def build_app() -> gr.Blocks:
             on_load,
             inputs=[gguf_path],
             outputs=[
-                manifest_state, summary_md, meta_df, tensor_df,
-                inspect_tensor_name, scalar_tensor_name, transform_tensor_name, slice_tensor_name,
-                scalar_output, transform_output, slice_output, batch_output,
+                manifest_state,
+                summary_md,
+                meta_df,
+                tensor_df,
+                inspect_tensor_name,
+                scalar_tensor_name,
+                transform_tensor_name,
+                slice_tensor_name,
+                scalar_output,
+                transform_output,
+                slice_output,
+                batch_output,
             ],
         )
-        filter_btn.click(filter_tensor_table, inputs=[manifest_state, filter_query, editable_only], outputs=[tensor_df])
-        inspect_btn.click(inspect_tensor, inputs=[manifest_state, inspect_tensor_name, inspect_decode_as, inspect_max], outputs=[inspect_stats, inspect_preview])
-        
+        filter_btn.click(
+            filter_tensor_table,
+            inputs=[manifest_state, filter_query, editable_only],
+            outputs=[tensor_df],
+        )
+        inspect_btn.click(
+            inspect_tensor,
+            inputs=[
+                manifest_state,
+                inspect_tensor_name,
+                inspect_decode_as,
+                inspect_max,
+            ],
+            outputs=[inspect_stats, inspect_preview],
+        )
+
         # Scalar tab
-        scalar_btn.click(patch_scalar, inputs=[manifest_state, scalar_tensor_name, scalar_decode_as, scalar_indices, scalar_value, scalar_output], outputs=[scalar_result])
+        scalar_btn.click(
+            patch_scalar,
+            inputs=[
+                manifest_state,
+                scalar_tensor_name,
+                scalar_decode_as,
+                scalar_indices,
+                scalar_value,
+                scalar_output,
+                scalar_overwrite_confirm,
+            ],
+            outputs=[scalar_result],
+        )
         scalar_add_batch_btn.click(
             batch_add_scalar,
-            inputs=[batch_queue, scalar_tensor_name, scalar_decode_as, scalar_indices, scalar_value],
+            inputs=[
+                batch_queue,
+                scalar_tensor_name,
+                scalar_decode_as,
+                scalar_indices,
+                scalar_value,
+            ],
             outputs=[batch_queue, scalar_add_batch_msg],
         )
-        
+
         # Transform tab
-        preview_transform_btn.click(preview_transform, inputs=[manifest_state, transform_tensor_name, transform_decode_as, transform_scale, transform_bias, transform_clip_min, transform_clip_max], outputs=[transform_preview_md, transform_preview_df])
-        transform_btn.click(patch_transform, inputs=[manifest_state, transform_tensor_name, transform_decode_as, transform_scale, transform_bias, transform_clip_min, transform_clip_max, transform_output], outputs=[transform_result])
+        preview_transform_btn.click(
+            preview_transform,
+            inputs=[
+                manifest_state,
+                transform_tensor_name,
+                transform_decode_as,
+                transform_scale,
+                transform_bias,
+                transform_clip_min,
+                transform_clip_max,
+            ],
+            outputs=[transform_preview_md, transform_preview_df],
+        )
+        transform_btn.click(
+            patch_transform,
+            inputs=[
+                manifest_state,
+                transform_tensor_name,
+                transform_decode_as,
+                transform_scale,
+                transform_bias,
+                transform_clip_min,
+                transform_clip_max,
+                transform_output,
+                transform_overwrite_confirm,
+            ],
+            outputs=[transform_result],
+        )
         transform_add_batch_btn.click(
             batch_add_transform,
-            inputs=[batch_queue, transform_tensor_name, transform_decode_as, transform_scale, transform_bias, transform_clip_min, transform_clip_max],
+            inputs=[
+                batch_queue,
+                transform_tensor_name,
+                transform_decode_as,
+                transform_scale,
+                transform_bias,
+                transform_clip_min,
+                transform_clip_max,
+            ],
             outputs=[batch_queue, transform_add_batch_msg],
         )
-        
+
         # Slice tab
-        preview_slice_btn.click(preview_slice_edit, inputs=[manifest_state, slice_tensor_name, slice_decode_as, slice_axis, slice_index, slice_mode, slice_value, slice_scale, slice_bias], outputs=[slice_preview_md, slice_preview_df])
-        slice_btn.click(patch_slice, inputs=[manifest_state, slice_tensor_name, slice_decode_as, slice_axis, slice_index, slice_mode, slice_value, slice_scale, slice_bias, slice_output], outputs=[slice_result])
+        preview_slice_btn.click(
+            preview_slice_edit,
+            inputs=[
+                manifest_state,
+                slice_tensor_name,
+                slice_decode_as,
+                slice_axis,
+                slice_index,
+                slice_mode,
+                slice_value,
+                slice_scale,
+                slice_bias,
+            ],
+            outputs=[slice_preview_md, slice_preview_df],
+        )
+        slice_btn.click(
+            patch_slice,
+            inputs=[
+                manifest_state,
+                slice_tensor_name,
+                slice_decode_as,
+                slice_axis,
+                slice_index,
+                slice_mode,
+                slice_value,
+                slice_scale,
+                slice_bias,
+                slice_output,
+                slice_overwrite_confirm,
+            ],
+            outputs=[slice_result],
+        )
         slice_add_batch_btn.click(
             batch_add_slice,
-            inputs=[batch_queue, slice_tensor_name, slice_decode_as, slice_axis, slice_index, slice_mode, slice_value, slice_scale, slice_bias],
+            inputs=[
+                batch_queue,
+                slice_tensor_name,
+                slice_decode_as,
+                slice_axis,
+                slice_index,
+                slice_mode,
+                slice_value,
+                slice_scale,
+                slice_bias,
+            ],
             outputs=[batch_queue, slice_add_batch_msg],
         )
-        
+
         # Batch manager tab
         batch_apply_btn.click(
             apply_batch,
-            inputs=[batch_queue, manifest_state, batch_output],
+            inputs=[batch_queue, manifest_state, batch_output, batch_overwrite_confirm],
             outputs=[batch_result],
             show_progress=True,
         )
@@ -962,7 +1372,7 @@ def build_app() -> gr.Blocks:
             inputs=[batch_queue],
             outputs=[batch_queue, batch_queue_md],
         )
-        
+
         # Update batch queue display whenever it changes
         batch_queue.change(
             render_batch_queue,
