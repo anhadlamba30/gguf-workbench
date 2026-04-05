@@ -141,15 +141,19 @@ def mri_get_all_tensor_choices(manifest_dict: Dict[str, Any]) -> List[str]:
     return [t.name for t in manifest.tensors]
 
 
-def on_load(gguf_file):
-    if gguf_file is None:
-        raise ValueError("Please upload a GGUF file.")
-    if isinstance(gguf_file, str):
-        file_path = gguf_file
-    else:
-        file_path = gguf_file.name
+def on_load(gguf_path: str = None, gguf_file=None):
+    file_path = None
+    if gguf_path and gguf_path.strip():
+        candidate = gguf_path.strip()
+        if Path(candidate).exists():
+            file_path = candidate
+    if file_path is None and gguf_file is not None:
+        if isinstance(gguf_file, str):
+            file_path = gguf_file
+        else:
+            file_path = gguf_file.name
     if not file_path:
-        raise ValueError("Please upload a GGUF file.")
+        raise ValueError("Please provide a valid GGUF file path or upload a file.")
     manifest, meta_df, tensor_df, choices = load_manifest(file_path)
     manifest_dict = manifest_to_dict(manifest)
     summary = manifest_summary(manifest)
@@ -328,11 +332,17 @@ def build_app() -> gr.Blocks:
         )
 
         with gr.Row():
-            gguf_file = gr.File(
-                label="Upload GGUF file",
-                file_count="single",
-                file_types=[".gguf"],
-            )
+            with gr.Column(scale=2):
+                gguf_path = gr.Textbox(
+                    label="GGUF file path",
+                    placeholder="/path/to/model.gguf",
+                )
+            with gr.Column(scale=1):
+                gguf_file = gr.File(
+                    label="Or upload file",
+                    file_count="single",
+                    file_types=[".gguf"],
+                )
             load_btn = gr.Button("Load GGUF", variant="primary", scale=1)
 
         summary_md = gr.Markdown()
@@ -586,7 +596,7 @@ def build_app() -> gr.Blocks:
 
         load_btn.click(
             on_load,
-            inputs=[gguf_file],
+            inputs=[gguf_path, gguf_file],
             outputs=[
                 manifest_state,
                 summary_md,

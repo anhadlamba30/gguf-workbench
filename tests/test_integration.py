@@ -145,10 +145,10 @@ class TestInspectTensor:
 class TestOnLoad:
     def test_no_path_raises(self):
         with pytest.raises(Exception):
-            on_load("")
+            on_load("", None)
 
     def test_valid_load(self, toy_path):
-        result = on_load(toy_path)
+        result = on_load(toy_path, None)
         manifest_dict, summary, meta_df, tensor_df = result[:4]
         assert manifest_dict["n_tensors"] == 1
         assert "toy.gguf" in summary
@@ -214,7 +214,7 @@ class TestPatchScalarIntegration:
                 out,
                 overwrite_confirm=True,
             )
-            manifest_dict, _, _, _ = on_load(out)[:4]
+            manifest_dict, _, _, _ = on_load(out, None)[:4]
             m = manifest_from_dict(manifest_dict)
             stats, _ = inspect_tensor(manifest_dict, "tensor.test", "auto", 32)
             assert "42" in stats
@@ -271,7 +271,7 @@ class TestPatchTransformIntegration:
                 out,
                 overwrite_confirm=True,
             )
-            manifest_dict, _, _, _ = on_load(out)[:4]
+            manifest_dict, _, _, _ = on_load(out, None)[:4]
             m = manifest_from_dict(manifest_dict)
             arr = decode_tensor(out, m.tensors[0], "auto")
             original = decode_tensor(toy_path, m.tensors[0], "auto")
@@ -298,7 +298,7 @@ class TestPatchSliceIntegration:
                 out,
                 overwrite_confirm=True,
             )
-            manifest_dict, _, _, _ = on_load(out)[:4]
+            manifest_dict, _, _, _ = on_load(out, None)[:4]
             m = manifest_from_dict(manifest_dict)
             arr = decode_tensor(out, m.tensors[0], "auto")
             assert arr[1, 0] == pytest.approx(7.0)
