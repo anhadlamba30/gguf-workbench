@@ -1,0 +1,132 @@
+{
+  "project": "GGUF Workbench V2.1",
+  "version": "2.1.0",
+  "description": "A Python + Gradio tool for surgically editing GGUF model weights",
+  "package": "gguf_workbench",
+  "entry_point": "app.py",
+  "modules": {
+    "constants": {
+      "path": "gguf_workbench/constants.py",
+      "description": "GGUF/GGML constants and type definitions",
+      "exports": [
+        "APP_TITLE",
+        "DEFAULT_ALIGNMENT",
+        "GGUF_MAGIC",
+        "SUPPORTED_VERSIONS",
+        "GGUF_TYPE_*",
+        "GGML_TYPE_*",
+        "EDITABLE_TYPE_NAMES"
+      ]
+    },
+    "parser": {
+      "path": "gguf_workbench/parser.py",
+      "description": "GGUF file parsing and manifest handling",
+      "dependencies": ["constants"],
+      "exports": [
+        "GGUFParseError",
+        "BinaryReader",
+        "TensorInfo",
+        "GGUFManifest",
+        "GGUFParser",
+        "load_gguf",
+        "load_manifest",
+        "manifest_to_dict",
+        "manifest_from_dict",
+        "manifest_summary"
+      ]
+    },
+    "tensor_ops": {
+      "path": "gguf_workbench/tensor_ops.py",
+      "description": "Tensor decode/encode/transform operations",
+      "dependencies": ["parser", "constants"],
+      "exports": [
+        "bf16_to_f32",
+        "f32_to_bf16",
+        "resolve_decode_kind",
+        "decode_tensor",
+        "encode_tensor",
+        "transform_array",
+        "build_transform_preview",
+        "parse_indices",
+        "parse_slice_spec"
+      ]
+    },
+    "validation": {
+      "path": "gguf_workbench/validation.py",
+      "description": "Output path validation utilities",
+      "exports": [
+        "validate_output_path",
+        "default_output_path"
+      ]
+    },
+    "compare": {
+      "path": "gguf_workbench/compare.py",
+      "description": "GGUF file comparison/diff logic",
+      "dependencies": ["parser", "tensor_ops"],
+      "exports": [
+        "compare_gguf"
+      ]
+    },
+    "batch": {
+      "path": "gguf_workbench/batch.py",
+      "description": "Batch operation queue and execution",
+      "dependencies": ["parser", "tensor_ops", "validation"],
+      "exports": [
+        "BatchOperation",
+        "write_tensor_patch",
+        "batch_op_to_dict",
+        "batch_op_from_dict",
+        "batch_add_scalar",
+        "batch_add_transform",
+        "batch_add_slice",
+        "render_batch_queue",
+        "apply_batch",
+        "clear_batch"
+      ]
+    },
+    "app": {
+      "path": "gguf_workbench/app.py",
+      "description": "Gradio UI construction and event handlers",
+      "dependencies": ["constants", "parser", "tensor_ops", "validation", "compare", "batch"],
+      "exports": [
+        "build_app",
+        "on_load",
+        "filter_tensor_table",
+        "inspect_tensor",
+        "patch_scalar",
+        "patch_transform",
+        "patch_slice",
+        "preview_transform",
+        "preview_slice_edit"
+      ]
+    }
+  },
+  "tests": {
+    "directory": "tests",
+    "pattern": "test_*.py",
+    "coverage_module": "gguf_workbench"
+  },
+  "supported_tensor_types": [
+    "F32",
+    "F16",
+    "BF16"
+  ],
+  "unsupported_by_design": [
+    "Q4_K",
+    "Q5_K",
+    "Q6_K",
+    "IQ1_S",
+    "IQ2_XXS",
+    "IQ2_XS",
+    "IQ3_XS",
+    "IQ4_XS"
+  ],
+  "run": {
+    "command": "python app.py",
+    "url": "http://localhost:7860"
+  },
+  "test": {
+    "command": "pytest",
+    "coverage": "pytest --cov=gguf_workbench"
+  }
+}
