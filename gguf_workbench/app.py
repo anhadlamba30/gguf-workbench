@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import gradio as gr
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 
 from .constants import APP_TITLE
 from .parser import (
@@ -30,6 +31,14 @@ from .batch import (
     batch_add_transform,
     clear_batch,
     render_batch_queue,
+)
+from .mri_viz import (
+    compute_tensor_stats,
+    plot_histogram,
+    plot_heatmap,
+    plot_layer_summary,
+    plot_model_overview,
+    get_tensor_quantization_info,
 )
 
 
@@ -74,6 +83,64 @@ def inspect_tensor(
     return text, preview
 
 
+def inspect_tensor_mri(manifest_dict: Dict[str, Any], tensor_name: str, decode_as: str):
+    manifest = manifest_from_dict(manifest_dict)
+    tensor = manifest.tensor_map().get(tensor_name)
+    if tensor is None:
+        raise ValueError(f"Tensor not found: {tensor_name}")
+    arr = decode_tensor(manifest.path, tensor, decode_as)
+
+    quant_info = get_tensor_quantization_info(tensor)
+    stats = compute_tensor_stats(arr)
+
+    hist_fig = plot_histogram(
+        arr,
+        title=f"{tensor.name} - Weight Distribution ({quant_info})",
+        n_bins=80,
+        show_kde=True,
+    )
+
+    heatmap_fig = None
+    if arr.ndim >= 2:
+        heatmap_fig = plot_heatmap(
+            arr,
+            title=f"{tensor.name} - Weight Matrix Heatmap",
+        )
+    else:
+        heatmap_fig = go.Figure().update_layout(
+            title="Heatmap not available for 1D tensors"
+        )
+
+    info_text = (
+        f"### {tensor.name}\n"
+        f"**Type:** {quant_info}\n"
+        f"**Shape:** {stats['shape']}\n"
+        f"**Elements:** {stats['n_elements']:,}\n\n"
+        f"**Statistics:**\n"
+        f"- Min: {stats['min']:.6g}\n"
+        f"- Max: {stats['max']:.6g}\n"
+        f"- Mean: {stats['mean']:.6g}\n"
+        f"- Std: {stats['std']:.6g}"
+    )
+
+    return hist_fig, heatmap_fig, info_text
+
+
+def mri_layer_summary(manifest_dict: Dict[str, Any]):
+    fig, _ = plot_layer_summary(manifest_dict)
+    return fig
+
+
+def mri_model_overview(manifest_dict: Dict[str, Any]):
+    fig = plot_model_overview(manifest_dict)
+    return fig
+
+
+def mri_get_all_tensor_choices(manifest_dict: Dict[str, Any]) -> List[str]:
+    manifest = manifest_from_dict(manifest_dict)
+    return [t.name for t in manifest.tensors]
+
+
 def on_load(gguf_file):
     if gguf_file is None:
         raise ValueError("Please upload a GGUF file.")
@@ -86,6 +153,7 @@ def on_load(gguf_file):
     manifest, meta_df, tensor_df, choices = load_manifest(file_path)
     manifest_dict = manifest_to_dict(manifest)
     summary = manifest_summary(manifest)
+    all_tensor_choices = [t.name for t in manifest.tensors]
     default_tensor = choices[0] if choices else None
     scalar_out = default_output_path(file_path)
     transform_out = default_output_path(file_path, ".transformed.gguf")
@@ -96,10 +164,11 @@ def on_load(gguf_file):
         summary,
         meta_df,
         tensor_df,
-        gr.update(choices=choices, value=default_tensor),
-        gr.update(choices=choices, value=default_tensor),
-        gr.update(choices=choices, value=default_tensor),
-        gr.update(choices=choices, value=default_tensor),
+        gr.update(choices=all_tensor_choices, value=default_tensor),
+        gr.update(choices=all_tensor_choices, value=default_tensor),
+        gr.update(choices=all_tensor_choices, value=default_tensor),
+        gr.update(choices=all_tensor_choices, value=default_tensor),
+        gr.update(choices=all_tensor_choices, value=default_tensor),
         scalar_out,
         transform_out,
         slice_out,
@@ -291,9 +360,47 @@ def build_app() -> gr.Blocks:
                     inspect_max = gr.Number(
                         label="Preview elements", value=32, precision=0
                     )
+                    inspect_mri_mode = gr.Checkbox(
+                        label="MRI Mode (Visualization)", value=False
+                    )
                     inspect_btn = gr.Button("Inspect", variant="primary")
-                inspect_stats = gr.Markdown()
-                inspect_preview = gr.Dataframe(label="Flattened preview")
+                with gr.Row(visible=False) as inspect_basic_view:
+                    inspect_stats = gr.Markdown()
+                    inspect_preview = gr.Dataframe(label="Flattened preview")
+                with gr.Row(visible=False) as inspect_mri_view:
+                    with gr.Column(scale=1):
+                        inspect_mri_info = gr.Markdown()
+                    with gr.Column(scale=2):
+                        inspect_mri_hist = gr.Plot()
+                        inspect_mri_heatmap = gr.Plot()
+
+            with gr.Tab("MRI Mode"):
+                gr.Markdown(
+                    "### 🧠 MRI Mode - Neural Weight Explorer\n"
+                    "Interactive visualizations of tensor weight distributions and patterns.\n\n"
+                    "**Tip:** Click on any tensor in the layer selector to explore its weights."
+                )
+                with gr.Row():
+                    mri_tensor_select = gr.Dropdown(
+                        label="Select Tensor",
+                        choices=[],
+                        scale=3,
+                    )
+                    mri_decode_as = gr.Radio(
+                        label="Decode as",
+                        choices=["auto", "F32", "F16", "BF16"],
+                        value="auto",
+                        scale=1,
+                    )
+                    mri_load_btn = gr.Button("Load MRI", variant="primary", scale=1)
+                with gr.Row():
+                    mri_layer_summary_plot = gr.Plot(label="Layer Summary")
+                with gr.Row():
+                    mri_model_overview_plot = gr.Plot(label="Model Overview")
+                with gr.Row():
+                    mri_hist_plot = gr.Plot(label="Weight Distribution")
+                    mri_heatmap_plot = gr.Plot(label="Weight Matrix Heatmap")
+                mri_tensor_info = gr.Markdown()
 
             with gr.Tab("Patch scalar"):
                 gr.Markdown(
@@ -489,6 +596,7 @@ def build_app() -> gr.Blocks:
                 scalar_tensor_name,
                 transform_tensor_name,
                 slice_tensor_name,
+                mri_tensor_select,
                 scalar_output,
                 transform_output,
                 slice_output,
@@ -500,6 +608,49 @@ def build_app() -> gr.Blocks:
             inputs=[manifest_state, filter_query, editable_only],
             outputs=[tensor_df],
         )
+
+        def update_mri_visibility(enabled):
+            if enabled:
+                return (
+                    gr.update(visible=False),
+                    gr.update(visible=True),
+                )
+            return (
+                gr.update(visible=True),
+                gr.update(visible=False),
+            )
+
+        inspect_mri_mode.change(
+            update_mri_visibility,
+            inputs=[inspect_mri_mode],
+            outputs=[inspect_basic_view, inspect_mri_view],
+        )
+
+        def handle_inspect_click(
+            mri_enabled, manifest_dict, tensor_name, decode_as, max_items
+        ):
+            if mri_enabled:
+                return (
+                    gr.update(visible=False),
+                    gr.update(visible=True),
+                )
+            return (
+                gr.update(visible=True),
+                gr.update(visible=False),
+            )
+
+        inspect_btn.click(
+            handle_inspect_click,
+            inputs=[
+                inspect_mri_mode,
+                manifest_state,
+                inspect_tensor_name,
+                inspect_decode_as,
+                inspect_max,
+            ],
+            outputs=[inspect_basic_view, inspect_mri_view],
+        )
+
         inspect_btn.click(
             inspect_tensor,
             inputs=[
@@ -509,6 +660,17 @@ def build_app() -> gr.Blocks:
                 inspect_max,
             ],
             outputs=[inspect_stats, inspect_preview],
+        )
+
+        inspect_btn.click(
+            inspect_tensor_mri,
+            inputs=[
+                manifest_state,
+                inspect_tensor_name,
+                inspect_decode_as,
+            ],
+            outputs=[inspect_mri_hist, inspect_mri_heatmap, inspect_mri_info],
+            show_progress=True,
         )
 
         scalar_btn.click(
@@ -647,6 +809,35 @@ def build_app() -> gr.Blocks:
                 compare_threshold,
             ],
             outputs=[compare_result, compare_diff_df],
+            show_progress=True,
+        )
+
+        load_btn.click(
+            mri_get_all_tensor_choices,
+            inputs=[manifest_state],
+            outputs=[mri_tensor_select],
+        )
+
+        load_btn.click(
+            mri_layer_summary,
+            inputs=[manifest_state],
+            outputs=[mri_layer_summary_plot],
+        )
+
+        load_btn.click(
+            mri_model_overview,
+            inputs=[manifest_state],
+            outputs=[mri_model_overview_plot],
+        )
+
+        mri_load_btn.click(
+            inspect_tensor_mri,
+            inputs=[
+                manifest_state,
+                mri_tensor_select,
+                mri_decode_as,
+            ],
+            outputs=[mri_hist_plot, mri_heatmap_plot, mri_tensor_info],
             show_progress=True,
         )
 

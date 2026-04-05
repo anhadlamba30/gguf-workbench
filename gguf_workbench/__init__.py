@@ -21,6 +21,7 @@ from .constants import (
     GGML_TYPE_BF16,
     GGML_TYPE_NAMES,
     EDITABLE_TYPE_NAMES,
+    QUANTIZED_TYPE_NAMES,
 )
 
 from .parser import (
@@ -47,6 +48,15 @@ from .tensor_ops import (
     build_transform_preview,
     parse_indices,
     parse_slice_spec,
+    dequantize_q8_0,
+    dequantize_q4_0,
+    dequantize_q4_k,
+    dequantize_q5_0,
+    dequantize_q5_k,
+    dequantize_q6_k,
+    dequantize_q2_k,
+    dequantize_q3_k,
+    dequantize_iq4_xs,
 )
 
 from .validation import (
@@ -73,12 +83,22 @@ from .app import (
     build_app,
     filter_tensor_table,
     inspect_tensor,
+    inspect_tensor_mri,
     on_load,
     patch_scalar,
     patch_transform,
     patch_slice,
     preview_transform,
     preview_slice_edit,
+)
+
+from .mri_viz import (
+    compute_tensor_stats,
+    plot_histogram,
+    plot_heatmap,
+    plot_layer_summary,
+    plot_model_overview,
+    get_tensor_quantization_info,
 )
 
 __all__ = [
@@ -104,6 +124,7 @@ __all__ = [
     "GGML_TYPE_BF16",
     "GGML_TYPE_NAMES",
     "EDITABLE_TYPE_NAMES",
+    "QUANTIZED_TYPE_NAMES",
     "GGUFParseError",
     "BinaryReader",
     "TensorInfo",
@@ -124,6 +145,15 @@ __all__ = [
     "build_transform_preview",
     "parse_indices",
     "parse_slice_spec",
+    "dequantize_q8_0",
+    "dequantize_q4_0",
+    "dequantize_q4_k",
+    "dequantize_q5_0",
+    "dequantize_q5_k",
+    "dequantize_q6_k",
+    "dequantize_q2_k",
+    "dequantize_q3_k",
+    "dequantize_iq4_xs",
     "validate_output_path",
     "default_output_path",
     "compare_gguf",
@@ -140,12 +170,19 @@ __all__ = [
     "build_app",
     "filter_tensor_table",
     "inspect_tensor",
+    "inspect_tensor_mri",
     "on_load",
     "patch_scalar",
     "patch_transform",
     "patch_slice",
     "preview_transform",
     "preview_slice_edit",
+    "compute_tensor_stats",
+    "plot_histogram",
+    "plot_heatmap",
+    "plot_layer_summary",
+    "plot_model_overview",
+    "get_tensor_quantization_info",
 ]
 
 __version__ = "2.1.0"

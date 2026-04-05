@@ -19,12 +19,78 @@ GGUF_TYPE_FLOAT64 = 12
 
 GGML_TYPE_F32 = 0
 GGML_TYPE_F16 = 1
+GGML_TYPE_Q4_0 = 2
+GGML_TYPE_Q4_1 = 3
+GGML_TYPE_Q5_0 = 6
+GGML_TYPE_Q5_1 = 7
+GGML_TYPE_Q8_0 = 8
+GGML_TYPE_Q8_1 = 9
+GGML_TYPE_Q2_K = 10
+GGML_TYPE_Q3_K = 11
+GGML_TYPE_Q4_K = 12
+GGML_TYPE_Q5_K = 13
+GGML_TYPE_Q6_K = 14
+GGML_TYPE_Q8_K = 15
+GGML_TYPE_IQ2_XXS = 16
+GGML_TYPE_IQ2_XS = 17
+GGML_TYPE_IQ3_XS = 18
+GGML_TYPE_IQ1_S = 19
+GGML_TYPE_IQ4_XS = 20
+GGML_TYPE_IQ2_S = 21
+GGML_TYPE_Q4_0_4_4 = 22
+GGML_TYPE_Q4_0_4_8 = 23
+GGML_TYPE_Q4_0_8_8 = 24
 GGML_TYPE_BF16 = 30
 
 GGML_TYPE_NAMES = {
     0: "F32",
     1: "F16",
+    2: "Q4_0",
+    3: "Q4_1",
+    6: "Q5_0",
+    7: "Q5_1",
+    8: "Q8_0",
+    9: "Q8_1",
+    10: "Q2_K",
+    11: "Q3_K",
+    12: "Q4_K",
+    13: "Q5_K",
+    14: "Q6_K",
+    15: "Q8_K",
+    16: "IQ2_XXS",
+    17: "IQ2_XS",
+    18: "IQ3_XS",
+    19: "IQ1_S",
+    20: "IQ4_XS",
+    21: "IQ2_S",
+    22: "Q4_0_4_4",
+    23: "Q4_0_4_8",
+    24: "Q4_0_8_8",
     30: "BF16",
 }
 
 EDITABLE_TYPE_NAMES = {"F32", "F16", "BF16", "F16_OR_BF16"}
+
+QUANTIZED_TYPE_NAMES = {
+    "Q4_0",
+    "Q4_1",
+    "Q5_0",
+    "Q5_1",
+    "Q8_0",
+    "Q8_1",
+    "Q2_K",
+    "Q3_K",
+    "Q4_K",
+    "Q5_K",
+    "Q6_K",
+    "Q8_K",
+    "IQ2_XXS",
+    "IQ2_XS",
+    "IQ3_XS",
+    "IQ1_S",
+    "IQ4_XS",
+    "IQ2_S",
+    "Q4_0_4_4",
+    "Q4_0_4_8",
+    "Q4_0_8_8",
+}
